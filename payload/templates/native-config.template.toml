@@ -1,0 +1,14 @@
+model = "deepseek-v4-flash"
+model_provider = "deepseek"
+preferred_auth_method = "apikey"
+forced_login_method = "api"
+model_reasoning_effort = "max"
+model_catalog_json = __NATIVE_CATALOG_PATH_JSON__
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+
+[model_providers.deepseek]
+name = "DeepSeek"
+base_url = "https://api.deepseek.com/"
+wire_api = "responses"
+experimental_bearer_token = __DEEPSEEK_API_KEY_JSON__

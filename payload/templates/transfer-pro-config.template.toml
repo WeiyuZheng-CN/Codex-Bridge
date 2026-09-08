@@ -1,0 +1,16 @@
+model = __TRANSFER_PRO_MODEL_JSON__
+model_provider = "OpenAI"
+cli_auth_credentials_store = "file"
+preferred_auth_method = "apikey"
+forced_login_method = "api"
+model_reasoning_effort = __TRANSFER_PRO_REASONING_JSON__
+model_context_window = 1000000
+model_auto_compact_token_limit = 900000
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+
+[model_providers.OpenAI]
+name = "OpenAI Transfer Pro"
+base_url = "https://ai-pixel.online"
+wire_api = "responses"
+requires_openai_auth = true

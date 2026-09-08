@@ -1,0 +1,89 @@
+mode: "Transform"
+
+trace:
+  enabled: false
+
+log:
+  level: "info"
+  format: "text"
+
+server:
+  addr: "127.0.0.1:38440"
+  auth_token: __LOCAL_BRIDGE_TOKEN_JSON__
+
+defaults:
+  model: "moonbridge"
+  max_tokens: 65536
+
+web_search:
+  support: "disabled"
+
+cache:
+  mode: "off"
+
+extensions:
+  deepseek_v4:
+    config:
+      reinforce_instructions: true
+      reinforce_prompt: "[System Reminder]: Pay close attention to system instructions, AGENTS.md files, and other context. Follow them carefully and completely.\n[User]:"
+  codex_tool_proxy:
+    enabled: true
+
+models:
+  deepseek-v4-pro:
+    context_window: 1000000
+    max_output_tokens: 384000
+    display_name: "DeepSeek V4 Pro"
+    description: "DeepSeek V4 Pro through the local Moon Bridge translator."
+    supports_reasoning: true
+    default_reasoning_level: "high"
+    supported_reasoning_levels:
+      - effort: "high"
+        description: "High reasoning effort"
+      - effort: "xhigh"
+        description: "Extra high reasoning effort"
+    supports_reasoning_summaries: true
+    default_reasoning_summary: "auto"
+    web_search:
+      support: "disabled"
+    extensions:
+      deepseek_v4:
+        enabled: true
+
+  deepseek-v4-flash:
+    context_window: 1000000
+    max_output_tokens: 384000
+    display_name: "DeepSeek V4 Flash"
+    description: "DeepSeek V4 Flash through the local Moon Bridge translator."
+    supports_reasoning: true
+    default_reasoning_level: "high"
+    supported_reasoning_levels:
+      - effort: "high"
+        description: "High reasoning effort"
+      - effort: "xhigh"
+        description: "Extra high reasoning effort"
+    supports_reasoning_summaries: true
+    default_reasoning_summary: "auto"
+    web_search:
+      support: "disabled"
+    extensions:
+      deepseek_v4:
+        enabled: true
+
+providers:
+  deepseek:
+    protocol: "anthropic"
+    base_url: "https://api.deepseek.com/anthropic"
+    api_key: __DEEPSEEK_API_KEY_JSON__
+    version: "2023-06-01"
+    user_agent: "moonbridge/codex-local"
+    web_search:
+      support: "disabled"
+    offers:
+      - model: "deepseek-v4-pro"
+      - model: "deepseek-v4-flash"
+
+routes:
+  moonbridge:
+    model: "deepseek-v4-pro"
+    provider: "deepseek"

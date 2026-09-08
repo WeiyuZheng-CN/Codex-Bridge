@@ -1,0 +1,18 @@
+model = "deepseek-v4-pro"
+model_provider = "moonbridge"
+cli_auth_credentials_store = "file"
+model_reasoning_effort = "high"
+model_context_window = 1000000
+model_catalog_json = __BRIDGE_CATALOG_PATH_JSON__
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+
+[model_providers.moonbridge]
+name = "Moon Bridge"
+base_url = "http://127.0.0.1:38440/v1"
+requires_openai_auth = true
+wire_api = "responses"
+
+[features]
+apps = false
+remote_plugin = false

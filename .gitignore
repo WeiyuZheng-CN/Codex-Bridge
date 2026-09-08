@@ -1,0 +1,24 @@
+# Local installation state
+auth.json
+config.yml
+bridge.pid
+history.jsonl
+*.log
+*.db
+*.sqlite
+*.sqlite3
+*.sqlite-shm
+*.sqlite-wal
+electron-data/
+sessions/
+archived_sessions/
+logs/
+backups/
+cache/
+
+# AI-agent local notes and temporary files
+LOCAL-CHANGES.md
+*.tmp
+*.install-*
+*.backup-*
+

@@ -1,0 +1,8 @@
+{
+  "moon_bridge_repository": "https://github.com/ZhiYi-R/moon-bridge",
+  "moon_bridge_commit": "c9ae8a8ee824c02ce1166893543838f3e414fde0",
+  "source_archive_sha256": "8392c729e75aedd47251a6c08460774e45064d205bef552c482805ed9c504a06",
+  "go_version": "go1.25.12",
+  "go_archive_sha256": "d5dc82da351b00e5eedd04f41356817d674cc4308131f0f638a5b14c5c3af4cb",
+  "moonbridge_exe_sha256": "25e8d0fc58e6881ba0532ea724276807e5179b87b1592ea813fa64271357b6df"
+}

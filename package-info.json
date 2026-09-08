@@ -1,0 +1,20 @@
+{
+  "name": "codex-vibe-software",
+  "display_name": "Codex Vibe Software",
+  "version": "1.2.0",
+  "built_date": "2026-09-08",
+  "installation_style": "ai-assisted",
+  "platform": "Windows 10/11 x64",
+  "credentials_bundled": false,
+  "beautiful_launcher_ui_included": true,
+  "selective_mode_installation": true,
+  "agent_local_adaptation": true,
+  "modes": [
+    "ChatGPT",
+    "DeepSeek V4 Pro through Moon Bridge",
+    "DeepSeek V4 Flash native",
+    "OpenAI-transfer-Pro",
+    "OpenAI-transfer"
+  ],
+  "moon_bridge_commit": "c9ae8a8ee824c02ce1166893543838f3e414fde0"
+}
