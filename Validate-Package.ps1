@@ -67,6 +67,30 @@ foreach ($relativePath in $requiredFiles) {
     }
 }
 
+# The validator is also run from a development checkout. Git metadata belongs
+# to the repository, not to the distributable package content being checked.
+$gitMetadataRoot = (Join-Path $packageRoot '.git').TrimEnd('\') + '\'
+$packageFiles = @(
+    Get-ChildItem -LiteralPath $packageRoot -Recurse -Force -File `
+        -ErrorAction SilentlyContinue |
+        Where-Object {
+            -not $_.FullName.StartsWith(
+                $gitMetadataRoot,
+                [StringComparison]::OrdinalIgnoreCase
+            )
+        }
+)
+$packageDirectories = @(
+    Get-ChildItem -LiteralPath $packageRoot -Recurse -Force -Directory `
+        -ErrorAction SilentlyContinue |
+        Where-Object {
+            -not $_.FullName.StartsWith(
+                $gitMetadataRoot,
+                [StringComparison]::OrdinalIgnoreCase
+            )
+        }
+)
+
 $forbiddenNames = @(
     'auth.json',
     'config.yml',
@@ -74,12 +98,7 @@ $forbiddenNames = @(
     'history.jsonl'
 )
 foreach ($name in $forbiddenNames) {
-    foreach ($file in Get-ChildItem -LiteralPath $packageRoot `
-        -Recurse `
-        -Force `
-        -File `
-        -Filter $name `
-        -ErrorAction SilentlyContinue) {
+    foreach ($file in @($packageFiles | Where-Object { $_.Name -eq $name })) {
         $relative = $file.FullName.Substring($packageRoot.Length).TrimStart('\')
         $errors.Add("Live or credential-bearing file is bundled: $relative")
     }
@@ -92,22 +111,15 @@ foreach ($directoryName in @(
     'logs',
     'backups'
 )) {
-    foreach ($directory in Get-ChildItem -LiteralPath $packageRoot `
-        -Recurse `
-        -Force `
-        -Directory `
-        -Filter $directoryName `
-        -ErrorAction SilentlyContinue) {
+    foreach ($directory in @(
+        $packageDirectories | Where-Object { $_.Name -eq $directoryName }
+    )) {
         $relative = $directory.FullName.Substring($packageRoot.Length).TrimStart('\')
         $errors.Add("Runtime directory is bundled: $relative")
     }
 }
 
-foreach ($file in Get-ChildItem -LiteralPath $packageRoot `
-    -Recurse `
-    -Force `
-    -File `
-    -ErrorAction SilentlyContinue) {
+foreach ($file in $packageFiles) {
     if ($file.Extension -match '^\.(db|sqlite|sqlite3|log)$' -or
         $file.Name -match '\.sqlite-(shm|wal)$') {
         $relative = $file.FullName.Substring($packageRoot.Length).TrimStart('\')
@@ -129,11 +141,7 @@ $secretPatterns = [ordered]@{
 }
 
 $secretMatches = 0
-foreach ($file in Get-ChildItem -LiteralPath $packageRoot `
-    -Recurse `
-    -Force `
-    -File `
-    -ErrorAction SilentlyContinue) {
+foreach ($file in $packageFiles) {
     if ($textExtensions -notcontains $file.Extension.ToLowerInvariant()) {
         continue
     }
@@ -148,11 +156,7 @@ foreach ($file in Get-ChildItem -LiteralPath $packageRoot `
 }
 
 $parseErrorCount = 0
-foreach ($scriptFile in Get-ChildItem -LiteralPath $packageRoot `
-    -Recurse `
-    -Force `
-    -File `
-    -Filter '*.ps1') {
+foreach ($scriptFile in @($packageFiles | Where-Object { $_.Extension -eq '.ps1' })) {
     $tokens = $null
     $parseErrors = $null
     $null = [Management.Automation.Language.Parser]::ParseFile(
@@ -169,11 +173,7 @@ foreach ($scriptFile in Get-ChildItem -LiteralPath $packageRoot `
     }
 }
 
-foreach ($jsonFile in Get-ChildItem -LiteralPath $packageRoot `
-    -Recurse `
-    -Force `
-    -File `
-    -Filter '*.json') {
+foreach ($jsonFile in @($packageFiles | Where-Object { $_.Extension -eq '.json' })) {
     try {
         $null = Get-Content -Raw -LiteralPath $jsonFile.FullName |
             ConvertFrom-Json
@@ -289,10 +289,10 @@ if (-not $Quiet) {
     Status = 'OK'
     PackageRoot = $packageRoot
     PowerShellFilesParsed = @(
-        Get-ChildItem -LiteralPath $packageRoot -Recurse -File -Filter '*.ps1'
+        $packageFiles | Where-Object { $_.Extension -eq '.ps1' }
     ).Count
     JsonFilesParsed = @(
-        Get-ChildItem -LiteralPath $packageRoot -Recurse -File -Filter '*.json'
+        $packageFiles | Where-Object { $_.Extension -eq '.json' }
     ).Count
     SecretPatternMatches = $secretMatches
     MoonBridgeBinaryVerified = $true

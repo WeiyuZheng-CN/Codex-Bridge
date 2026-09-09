@@ -1,0 +1,14 @@
+model_provider = "OpenAI"
+model = "gpt-5.6-luna"
+model_reasoning_effort = "medium"
+sandbox_mode = "workspace-write"
+
+[sandbox_workspace_write]
+network_access = true
+
+[model_providers.OpenAI]
+name = "OpenAI"
+base_url = "https://ai-pixel.online"
+wire_api = "responses"
+requires_openai_auth = true
+

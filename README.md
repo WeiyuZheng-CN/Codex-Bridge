@@ -21,6 +21,11 @@ Moon Bridge 及源码，以及供安装 agent 理解架构的说明。它不包�
 `OpenAI-transfer-Pro` 和 `OpenAI-transfer`。未安装的模式仍保留在漂亮界面中，
 但会淡化显示；以后可以让 agent 补装。
 
+仓库还提供 `configuration/260902` 的脱敏中转站参考配置。需要最新配置或
+凭据时，agent 会让用户打开 <https://ai-pixel.online/keys> 并点击“使用密匙”；
+页面返回的信息应保存在仓库外或通过本地隐藏输入框使用，不能粘贴到聊天或
+提交到 GitHub。
+
 ## Vibe Software 的思路
 
 - 包提供可靠的核心和清楚的架构，不穷举所有电脑环境。
@@ -31,4 +36,3 @@ Moon Bridge 及源码，以及供安装 agent 理解架构的说明。它不包�
 
 安装提示语在 `START-HERE-FOR-AI.md`，后续改造提示语在
 `EVOLVE-WITH-AI.md`，具体架构在 `AI-INSTALLATION-GUIDE.md`。
-

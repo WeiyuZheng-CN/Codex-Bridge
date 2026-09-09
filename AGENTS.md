@@ -36,6 +36,11 @@ Prefer private one-line files outside the extracted package. Pass file paths
 to the installer; never read or print their contents. If files do not exist,
 run the installer visibly so the user can type into its hidden prompts.
 
+For current Transfer station information, direct the user to
+<https://ai-pixel.online/keys> and ask them to click **使用密匙**. Use the
+sanitized references under `configuration/260902` to understand the expected
+shapes. Keep the page output private and never request it in chat.
+
 ## Typical commands
 
 First inspect without writing:
@@ -75,4 +80,3 @@ adaptation, not for ignoring an unknown failure.
 
 Everything else inside the requested local installation is adaptation work the
 agent may perform and explain.
-
