@@ -1,20 +1,35 @@
 {
   "name": "codex-vibe-software",
   "display_name": "Codex Vibe Software",
-  "version": "1.2.1",
-  "built_date": "2026-09-09",
+  "version": "1.4.0",
+  "built_date": "2026-09-10",
   "installation_style": "ai-assisted",
   "platform": "Windows 10/11 x64",
   "credentials_bundled": false,
   "beautiful_launcher_ui_included": true,
   "selective_mode_installation": true,
   "agent_local_adaptation": true,
+  "deepseek_transport": "native",
+  "deepseek_reference": "260909",
+  "deepseek_vision_guide": "https://api-docs.deepseek.com/guides/vision",
+  "deepseek_models": [
+    "deepseek-v4-pro",
+    "deepseek-v4-flash",
+    "deepseek-v4-flash-vision-exp"
+  ],
+  "transfer_profile_strategy": "shared-auth-json",
+  "transfer_reference": "260902",
+  "transfer_docs": [
+    "https://docs.ai-pixel.online/docs/api",
+    "https://docs.ai-pixel.online/docs/api/responses",
+    "https://docs.ai-pixel.online/docs/api/models",
+    "https://docs.ai-pixel.online/docs/normal-client-setup",
+    "https://docs.ai-pixel.online/docs/normal-account-mode"
+  ],
   "modes": [
     "ChatGPT",
-    "DeepSeek V4 Pro through Moon Bridge",
-    "DeepSeek V4 Flash native",
-    "OpenAI-transfer-Pro",
-    "OpenAI-transfer"
+    "DeepSeek native (V4 Pro, V4 Flash, and V4 Flash Vision)",
+    "OpenAI Transfer (server-side Pro/Legacy switch)"
   ],
   "moon_bridge_commit": "c9ae8a8ee824c02ce1166893543838f3e414fde0"
 }

@@ -46,13 +46,25 @@ function Get-ConfiguredProfileRoot {
     return [IO.Path]::GetFullPath([string]$launcherSettings.$SettingName)
 }
 
-# Both transfer modes use the station's newest 260902 transport settings.
-# They remain separate Codex profiles because their credentials and histories
-# belong to different station modes. No Moon Bridge, localhost proxy, or
-# translation layer is used.
-if ($TransferMode -eq 'OpenAI-transfer') {
+# New installations use one auth.json profile. The station's web console
+# selects Pro/Legacy routing for the same key, so the local launcher no longer
+# needs to select a second profile. Older installations are still understood
+# below so an AI agent can roll back or repair them without losing history.
+$useSharedProfile = [bool](
+    $launcherSettings.PSObject.Properties['transfer_shared_profile_root'] -and
+    -not [string]::IsNullOrWhiteSpace(
+        [string]$launcherSettings.transfer_shared_profile_root
+    )
+)
+if ($useSharedProfile) {
+    $profileRoot = Get-ConfiguredProfileRoot `
+        -SettingName 'transfer_shared_profile_root'
+    $profileAuthMode = 'auth.json'
+}
+elseif ($TransferMode -eq 'OpenAI-transfer') {
     $profileRoot = Get-ConfiguredProfileRoot `
         -SettingName 'transfer_legacy_profile_root'
+    $profileAuthMode = 'environment-key'
 }
 else {
     if ($launcherSettings.PSObject.Properties['transfer_pro_profile_root']) {
@@ -64,12 +76,7 @@ else {
         $profileRoot = Get-ConfiguredProfileRoot `
             -SettingName 'transfer_profile_root'
     }
-}
-$profileAuthMode = if ($TransferMode -eq 'OpenAI-transfer') {
-    'environment-key'
-}
-else {
-    'auth.json'
+    $profileAuthMode = 'auth.json'
 }
 $codexHome = Join-Path $profileRoot 'codex-home'
 $codexConfigPath = Join-Path $codexHome 'config.toml'
@@ -211,12 +218,15 @@ function Read-TransferProfileConfiguration {
         $configText,
         '(?m)^requires_openai_auth\s*=\s*(true|false)\s*\r?$'
     )
+    $expectedRequiresAuth = if ($profileAuthMode -eq 'auth.json') {
+        'true'
+    }
+    else {
+        'false'
+    }
     if (
         -not $requiresAuthLine.Success -or
-        (
-            ($profileAuthMode -eq 'auth.json' -and $requiresAuthLine.Groups[1].Value -ne 'true') -or
-            ($profileAuthMode -eq 'environment-key' -and $requiresAuthLine.Groups[1].Value -ne 'false')
-        )
+        $requiresAuthLine.Groups[1].Value -ne $expectedRequiresAuth
     ) {
         throw "The $TransferMode profile has an unexpected authentication mode."
     }
@@ -244,6 +254,7 @@ function Read-TransferProfileConfiguration {
         WireApi = $wireApiLine.Groups[1].Value
         RequiresOpenAIAuth = $requiresAuthLine.Groups[1].Value
         AuthMode = $profileAuthMode
+        ProfileStrategy = if ($useSharedProfile) { 'shared-auth-json' } else { 'compatibility' }
         EnvironmentKey = if ($envKeyLine.Success) { $envKeyLine.Groups[1].Value } else { '' }
         ActorHeader = if ($actorHeaderLine.Success) { $actorHeaderLine.Groups[1].Value } else { '' }
     }
@@ -342,7 +353,13 @@ try {
         }
         [ordered]@{
             Status = 'OK'
-            TransferMode = $TransferMode
+            TransferMode = if ($useSharedProfile) {
+                'shared (web-selected Pro/Legacy)'
+            }
+            else {
+                $TransferMode
+            }
+            RequestedTransferMode = $TransferMode
             ModelOverride = $(if ($Model) { $Model } else { '(preserve configured model)' })
             CurrentModel = $modelLine.Groups[1].Value
             CurrentProvider = $profileSettings.Provider
@@ -350,6 +367,8 @@ try {
             CurrentWireApi = $profileSettings.WireApi
             RequiresOpenAIAuth = $profileSettings.RequiresOpenAIAuth
             AuthenticationMode = $profileSettings.AuthMode
+            ProfileStrategy = $profileSettings.ProfileStrategy
+            ServerSideModeSwitch = $useSharedProfile
             CurrentReasoningEffort = $currentEffort
             ProfileRoot = $profileRoot
             TransferCodexHome = $codexHome

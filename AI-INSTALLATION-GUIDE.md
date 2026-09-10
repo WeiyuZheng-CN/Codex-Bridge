@@ -7,7 +7,7 @@ launcher core with enough explanation for an AI agent to install and evolve it
 on computers the original author has never seen. It intentionally does not
 encode every environment or future provider revision.
 
-The four-card WPF chooser remains the human-facing launcher. The AI
+The three-entry WPF chooser remains the human-facing launcher. The AI
 conversation is the installer, repair assistant, and development interface.
 
 ## Architecture
@@ -17,11 +17,10 @@ The chooser dispatches provider launchers in separate PowerShell processes:
 ```text
 Start-Codex-Chooser.ps1
   ChatGPT             -> normal user Codex profile
-  DeepSeek V4 Pro     -> local Moon Bridge -> DeepSeek Anthropic API
-  DeepSeek V4 Flash   -> isolated profile -> DeepSeek Responses API
-  OpenAI Transfer     -> second selector
-    OpenAI-transfer-Pro -> isolated Pro profile
-    OpenAI-transfer     -> isolated Legacy profile
+  DeepSeek             -> one native profile -> DeepSeek Responses API
+    Codex model picker -> V4 Pro / V4 Flash / V4 Flash Vision
+  OpenAI Transfer     -> one shared auth.json profile -> station Responses API
+    Pro / Legacy       -> selected by the transfer-station web console
 ```
 
 `launcher.settings.json`, generated on the target computer, records the Codex
@@ -33,9 +32,9 @@ Default destinations are:
 
 ```text
 %LOCALAPPDATA%\Programs\Codex-DeepSeek-Bridge\   launcher application
-<Documents>\Codex\deepseek-native-test\         native Flash profile
-<Documents>\Codex\ai-pixel-relay\               Transfer Pro profile
-<Documents>\Codex\ai-pixel-relay\legacy-transfer\  Transfer Legacy profile
+<Documents>\Codex\deepseek-native-test\         native DeepSeek profile
+<Documents>\Codex\ai-pixel-relay\               shared Transfer profile
+<Documents>\Codex\ai-pixel-relay\legacy-transfer\  old compatibility profile, if retained
 <Documents>\Codex\Codex-Launcher                friendly app link
 ```
 
@@ -47,26 +46,28 @@ profile is used only by the ChatGPT launcher and is not rewritten.
 The installer accepts:
 
 ```text
--Modes ChatGPT,DeepSeek,NativeFlash,TransferPro,TransferLegacy
+-Modes ChatGPT,DeepSeek,Transfer
 ```
 
 Use `-Modes all` for everything. If `-Modes` is omitted in non-interactive
 automation, supplied credential-file paths are used to infer a useful subset;
 with no credentials it installs ChatGPT only. In an attended run, the installer
 asks which modes to install. ChatGPT is always included as the base route.
+For compatibility, old names such as `NativeFlash` and
+`deepseek-v4-flash` are accepted as aliases for the single `DeepSeek` mode.
 
 Examples:
 
 ```powershell
-# Pro transfer only (plus ChatGPT)
+# Shared Transfer profile (plus ChatGPT)
 & .\Install-Codex-Provider-Launcher.ps1 `
-  -Modes TransferPro `
-  -TransferProKeyFile "D:\Private\transfer-pro.txt" `
+  -Modes Transfer `
+  -TransferKeyFile "D:\Private\transfer.txt" `
   -NonInteractive
 
-# Both DeepSeek routes (plus ChatGPT)
+# Native DeepSeek with all three models (plus ChatGPT)
 & .\Install-Codex-Provider-Launcher.ps1 `
-  -Modes DeepSeek,NativeFlash `
+  -Modes DeepSeek `
   -DeepSeekKeyFile "D:\Private\deepseek.txt" `
   -NonInteractive
 ```
@@ -78,45 +79,82 @@ Other useful parameters are:
 
 | Parameter | Meaning |
 |---|---|
+| `-TransferKeyFile` | One current station key for the shared Transfer profile. |
 | `-CodexExecutablePath` | Full path to `ChatGPT.exe` when discovery fails. |
 | `-InstallRoot` / `-ProfilesRoot` | Machine-specific destinations. |
 | `-NoDesktopShortcut` / `-NoFriendlyLink` | Skip optional shell integration. |
-| `-TransferProModel` / `-TransferLegacyModel` | Current station model names. |
-| `-TransferProReasoningEffort` / `-TransferLegacyReasoningEffort` | Current reasoning defaults. |
-| `-TransferLegacyWithoutActor` | Omit the actor header only when the station confirms it is unnecessary. |
+| `-TransferProModel` / `-TransferModel` | Current station model name for the shared profile. The old Pro name remains accepted. |
+| `-TransferProReasoningEffort` | Current reasoning default for the shared profile. |
+| `-TransferProKeyFile` / `-TransferLegacyKeyFile` | Compatibility aliases for `-TransferKeyFile`; use one key file. |
+| `-TransferLegacyWithoutActor` | Retained for old scripts; the shared auth.json profile does not add an actor header. |
 | `-ValidateOnly` | Inspect package, paths, selected modes, and supplied key files without installing. |
 | `-SkipPackageValidation` | Continue after an agent has inspected a warning caused by a deliberate local adaptation. |
 
 ## Credentials
 
-Required inputs depend on the selected modes. DeepSeek Pro and native Flash can
-use the same DeepSeek key. Transfer Pro and Transfer Legacy receive distinct
-keys. Legacy may additionally need an actor-authorization value.
+Required inputs depend on the selected modes. The native DeepSeek profile uses
+one DeepSeek key for Pro, Flash, and Flash Vision. The shared Transfer profile
+uses one station key in `auth.json`; the station web console decides whether
+that key currently routes through Pro or Legacy. An actor-authorization value
+is only relevant to an older API Key Mode compatibility profile.
 
 Pass paths to private one-line files outside the extracted package, or let the
 user type into local secure prompts. Never place secret values on command lines
 or in AI chat. Generated local credential/configuration files receive private
 ACLs where Windows permits it.
 
+## Current DeepSeek native baseline
+
+The 260909 reference and official Vision guide use the native DeepSeek API at
+`https://api.deepseek.com`. The generated Codex profile uses the Responses API
+and one model catalog containing:
+
+- `deepseek-v4-pro`;
+- `deepseek-v4-flash`;
+- `deepseek-v4-flash-vision-exp`.
+
+There is no second DeepSeek dialog. The user starts DeepSeek once and selects
+the desired model in Codex. The vision model accepts JPEG, PNG, GIF, and WebP
+images through Responses API `input_image` parts. See
+`configuration\260909` and
+<https://api-docs.deepseek.com/guides/vision>.
+
+Moon Bridge and its source remain in the package as historical compatibility
+resources, but the primary DeepSeek launcher does not start the bridge.
+
 ## Current Transfer baseline
 
-Sanitized model-specific references are stored under `configuration\260902`.
-When current station information is required, direct the user to
-<https://ai-pixel.online/keys> and ask them to click **使用密匙**. The resulting
-configuration or credentials must remain in a private file outside the
-repository, or be entered through the local hidden prompt. The agent should
-use only the private file path and must not ask the user to paste the page
-contents into chat.
+The official station documentation is the source of truth:
 
-The included templates currently share:
+- API overview: <https://docs.ai-pixel.online/docs/api>
+- Responses API: <https://docs.ai-pixel.online/docs/api/responses>
+- Models: <https://docs.ai-pixel.online/docs/api/models>
+- Client configuration: <https://docs.ai-pixel.online/docs/normal-client-setup>
+- Account-mode routing: <https://docs.ai-pixel.online/docs/normal-account-mode>
+
+The sanitized historical references are stored under `configuration\260902`.
+For the current key, direct the user to <https://ai-pixel.online/keys> and ask
+them to click **使用密匙**. The resulting configuration or credentials must
+remain in a private file outside the repository, or be entered through the
+local hidden prompt. The agent should use only the private file path and must
+not ask the user to paste page contents into chat.
+
+The two screenshots supplied for the current Pro/Legacy key both show the
+same `auth.json mode` shape:
 
 ```toml
+model_provider = "OpenAI"
 base_url = "https://ai-pixel.online"
 wire_api = "responses"
+requires_openai_auth = true
 ```
 
-Pro currently uses `requires_openai_auth = true` with its own `auth.json`.
-Legacy currently uses 260902 API Key Mode:
+That is why new installations use one shared Transfer profile and one
+`auth.json`. The web console's Pro/Legacy setting is expected to change server
+side routing for the same key. The selected model must still be available to
+that key; check `/v1/models` or the model list returned by **使用密匙**.
+
+The older 260902 API Key Mode remains a compatibility reference:
 
 ```toml
 requires_openai_auth = false
@@ -124,11 +162,11 @@ env_key = "SUB2API_API_KEY"
 http_headers = { "x-openai-actor-authorization" = "<local secret>" }
 ```
 
-These are defaults, not eternal truths. If the station changes, the agent may
-adapt a working copy after comparing the newest provider information. Preserve
-the separation of Pro and Legacy credentials and profiles. The Transfer
-launcher accepts any valid HTTP(S) station URL found in the local profile so a
-legitimate endpoint adaptation does not require rewriting its validator.
+If a future popup returns this older shape, or adds a different required
+header, do not force it into the shared profile. Keep the old compatibility
+profile, save a dated backup, and let the agent adapt the smallest local block.
+The endpoint and auth shape must be inferred from the current popup, not from a
+model name or the 260902 date alone.
 
 ## Validation philosophy
 
@@ -178,8 +216,9 @@ databases, logs, Electron data, PID files, caches, backups, and personal paths.
   and configure it rather than calling the UI broken.
 - Transfer 409: inspect the station/account connection state before changing
   the launcher; a web-console connection step may be required.
-- Provider settings changed: compare the current profile and station docs,
-  adapt the smallest block, and keep Pro/Legacy isolated.
+- Provider settings changed: compare the current **使用密匙** output with the
+  official station docs. Keep one shared profile only when both modes return
+  the same auth shape; otherwise retain a separate compatibility profile.
 - A preflight hash/check changed after an intentional edit: inspect the diff,
   then continue; do not undo a useful feature merely to satisfy an old hash.
 - Codex is already open: finish the current task and quit it before switching

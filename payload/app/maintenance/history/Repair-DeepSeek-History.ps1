@@ -23,6 +23,7 @@ function Get-ModelLabel {
     param([string]$Model)
 
     switch ($Model) {
+        'deepseek-v4-flash-vision-exp' { return 'DeepSeek V4 Flash Vision' }
         'deepseek-v4-flash' { return 'DeepSeek V4 Flash' }
         'deepseek-v4-pro' { return 'DeepSeek V4 Pro' }
         'moonbridge' { return 'DeepSeek V4 Pro' }

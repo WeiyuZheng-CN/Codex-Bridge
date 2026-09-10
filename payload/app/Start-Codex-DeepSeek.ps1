@@ -1,7 +1,11 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('deepseek-v4-pro', 'deepseek-v4-flash')]
-    [string]$Model = 'deepseek-v4-pro',
+    [ValidateSet(
+        'deepseek-v4-pro',
+        'deepseek-v4-flash',
+        'deepseek-v4-flash-vision-exp'
+    )]
+    [string]$Model = '',
     [switch]$ValidateOnly
 )
 
@@ -9,19 +13,49 @@ Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
 $installRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$bridgeExe = Join-Path $installRoot 'moonbridge.exe'
-$configPath = Join-Path $installRoot 'config.yml'
-$codexHome = Join-Path $installRoot 'codex-home'
-$codexConfigPath = Join-Path $codexHome 'config.toml'
-$electronData = Join-Path $installRoot 'electron-data'
-$authPath = Join-Path $codexHome 'auth.json'
-$historyDirectory = Join-Path $installRoot 'maintenance\history'
-$historyRepair = Join-Path $historyDirectory 'Repair-DeepSeek-History.ps1'
-$metadataRepair = Join-Path $historyDirectory 'Repair-DeepSeek-HistoryMetadata.py'
+$settingsPath = Join-Path $installRoot 'launcher.settings.json'
+$historyRepair = Join-Path $installRoot (
+    'maintenance\history\Repair-DeepSeek-History.ps1'
+)
 $logDirectory = Join-Path $installRoot 'logs'
 $pidPath = Join-Path $installRoot 'bridge.pid'
-$bridgeProcess = $null
-$settingsPath = Join-Path $installRoot 'launcher.settings.json'
+
+$launcherSettings = $null
+if (Test-Path -LiteralPath $settingsPath -PathType Leaf) {
+    try {
+        $launcherSettings = Get-Content -Raw -LiteralPath $settingsPath |
+            ConvertFrom-Json
+    }
+    catch {
+        throw 'launcher.settings.json is not valid JSON.'
+    }
+}
+
+function Get-DeepSeekProfileRoot {
+    if (
+        $launcherSettings -and
+        $launcherSettings.PSObject.Properties['deepseek_profile_root'] -and
+        -not [string]::IsNullOrWhiteSpace(
+            [string]$launcherSettings.deepseek_profile_root
+        )
+    ) {
+        return [IO.Path]::GetFullPath(
+            [string]$launcherSettings.deepseek_profile_root
+        )
+    }
+
+    $documentsPath = [Environment]::GetFolderPath('MyDocuments')
+    if ([string]::IsNullOrWhiteSpace($documentsPath)) {
+        $documentsPath = Join-Path $env:USERPROFILE 'Documents'
+    }
+    return Join-Path (Join-Path $documentsPath 'Codex') 'deepseek-native-test'
+}
+
+$deepSeekRoot = Get-DeepSeekProfileRoot
+$codexHome = Join-Path $deepSeekRoot 'codex-home'
+$codexConfigPath = Join-Path $codexHome 'config.toml'
+$modelCatalogPath = Join-Path $codexHome 'models.json'
+$electronData = Join-Path $deepSeekRoot 'electron-data'
 
 function Show-CodexMessage {
     param(
@@ -39,19 +73,13 @@ function Show-CodexMessage {
 }
 
 function Resolve-CodexDesktopExecutable {
-    if (Test-Path -LiteralPath $settingsPath -PathType Leaf) {
-        try {
-            $settings = Get-Content -Raw -LiteralPath $settingsPath |
-                ConvertFrom-Json
-            if ($settings.PSObject.Properties['codex_executable']) {
-                $configured = [string]$settings.codex_executable
-                if (Test-Path -LiteralPath $configured -PathType Leaf) {
-                    return [IO.Path]::GetFullPath($configured)
-                }
-            }
-        }
-        catch {
-            # Fall through to dynamic discovery.
+    if (
+        $launcherSettings -and
+        $launcherSettings.PSObject.Properties['codex_executable']
+    ) {
+        $configured = [string]$launcherSettings.codex_executable
+        if (Test-Path -LiteralPath $configured -PathType Leaf) {
+            return [IO.Path]::GetFullPath($configured)
         }
     }
 
@@ -60,17 +88,18 @@ function Resolve-CodexDesktopExecutable {
         $resourcesDirectory = Split-Path -Parent $codexCommand.Source
         $appDirectory = Split-Path -Parent $resourcesDirectory
         $candidate = Join-Path $appDirectory 'ChatGPT.exe'
-        if (Test-Path -LiteralPath $candidate) {
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
             return $candidate
         }
     }
 
-    $package = Get-AppxPackage -Name 'OpenAI.Codex' -ErrorAction SilentlyContinue |
+    $package = Get-AppxPackage -Name 'OpenAI.Codex' `
+        -ErrorAction SilentlyContinue |
         Sort-Object Version -Descending |
         Select-Object -First 1
     if ($package) {
         $candidate = Join-Path $package.InstallLocation 'app\ChatGPT.exe'
-        if (Test-Path -LiteralPath $candidate) {
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
             return $candidate
         }
     }
@@ -78,46 +107,115 @@ function Resolve-CodexDesktopExecutable {
     throw 'The installed Codex desktop executable could not be located.'
 }
 
-function Test-Bridge {
-    param([hashtable]$Headers)
+function Stop-LegacyMoonBridgeIfRecorded {
+    if (-not (Test-Path -LiteralPath $pidPath -PathType Leaf)) {
+        return
+    }
 
-    try {
-        $null = Invoke-RestMethod `
-            -UseBasicParsing `
-            -Uri 'http://127.0.0.1:38440/v1/models' `
-            -Headers $Headers `
-            -TimeoutSec 2
-        return $true
+    $savedPid = 0
+    if ([int]::TryParse(
+        (Get-Content -Raw -LiteralPath $pidPath).Trim(),
+        [ref]$savedPid
+    )) {
+        $savedProcess = Get-Process -Id $savedPid `
+            -ErrorAction SilentlyContinue
+        if ($savedProcess -and $savedProcess.ProcessName -eq 'moonbridge') {
+            Stop-Process -Id $savedPid -Force -ErrorAction SilentlyContinue
+        }
     }
-    catch {
-        return $false
-    }
+    Remove-Item -LiteralPath $pidPath -Force -ErrorAction SilentlyContinue
 }
 
-function Get-LocalBridgeToken {
-    try {
-        $auth = Get-Content -Raw -LiteralPath $authPath | ConvertFrom-Json
+function Get-DeepSeekProfileState {
+    if (-not (Test-Path -LiteralPath $codexConfigPath -PathType Leaf)) {
+        throw "DeepSeek native config is missing: $codexConfigPath"
     }
-    catch {
-        throw 'The local bridge authentication file is not valid JSON.'
+    if (-not (Test-Path -LiteralPath $modelCatalogPath -PathType Leaf)) {
+        throw "DeepSeek model catalog is missing: $modelCatalogPath"
     }
 
-    $localToken = ''
-    if ($auth.PSObject.Properties['OPENAI_API_KEY']) {
-        $localToken = [string]$auth.OPENAI_API_KEY
+    $content = [IO.File]::ReadAllText(
+        $codexConfigPath,
+        [Text.Encoding]::UTF8
+    )
+    $settings = @{}
+    foreach ($name in @(
+        'model',
+        'model_provider',
+        'base_url',
+        'wire_api',
+        'model_reasoning_effort',
+        'experimental_bearer_token'
+    )) {
+        $match = [regex]::Match(
+            $content,
+            '(?m)^' + [regex]::Escape($name) +
+                '\s*=\s*"([^"]*)"\s*\r?$'
+        )
+        if (-not $match.Success) {
+            throw "The DeepSeek native profile is missing $name."
+        }
+        $settings[$name] = $match.Groups[1].Value
     }
-    elseif ($auth.PSObject.Properties['openai_api_key']) {
-        $localToken = [string]$auth.openai_api_key
+
+    if ($settings.model_provider -ne 'deepseek') {
+        throw 'The DeepSeek profile must use model_provider = "deepseek".'
     }
-    if ([string]::IsNullOrWhiteSpace($localToken)) {
-        throw 'The local bridge authentication token is missing.'
+    $baseUri = $null
+    if (
+        -not [Uri]::TryCreate(
+            $settings.base_url,
+            [UriKind]::Absolute,
+            [ref]$baseUri
+        ) -or
+        $baseUri.Scheme -notin @('http', 'https')
+    ) {
+        throw 'The DeepSeek native profile has an invalid base_url.'
     }
-    return $localToken
+    if ($settings.wire_api -ne 'responses') {
+        throw 'The DeepSeek native profile must use wire_api = "responses".'
+    }
+    if ([string]::IsNullOrWhiteSpace($settings.experimental_bearer_token)) {
+        throw 'The DeepSeek native authentication token is missing.'
+    }
+
+    try {
+        $catalog = Get-Content -Raw -LiteralPath $modelCatalogPath |
+            ConvertFrom-Json
+    }
+    catch {
+        throw 'The DeepSeek native model catalog is not valid JSON.'
+    }
+    if (-not $catalog.PSObject.Properties['models']) {
+        throw 'The DeepSeek native model catalog has no models list.'
+    }
+    $modelSlugs = @($catalog.models | ForEach-Object { [string]$_.slug })
+    foreach ($requiredModel in @(
+        'deepseek-v4-pro',
+        'deepseek-v4-flash',
+        'deepseek-v4-flash-vision-exp'
+    )) {
+        if ($modelSlugs -notcontains $requiredModel) {
+            throw "The DeepSeek model catalog does not expose $requiredModel."
+        }
+    }
+
+    return [ordered]@{
+        Model = $settings.model
+        Provider = $settings.model_provider
+        BaseUrl = $baseUri.AbsoluteUri.TrimEnd('/')
+        WireApi = $settings.wire_api
+        ReasoningEffort = $settings.model_reasoning_effort
+        Models = @($modelSlugs)
+    }
 }
 
 function Set-SelectedModel {
     param([string]$SelectedModel)
 
+    if ([string]::IsNullOrWhiteSpace($SelectedModel)) {
+        return
+    }
     $content = [IO.File]::ReadAllText(
         $codexConfigPath,
         [Text.Encoding]::UTF8
@@ -127,25 +225,17 @@ function Set-SelectedModel {
     if ($matches.Count -ne 1) {
         throw "Expected exactly one top-level model setting in $codexConfigPath."
     }
-
-    $replacement = 'model = "' + $SelectedModel + '"'
-    $updated = [regex]::Replace($content, $pattern, $replacement, 1)
-    $effortPattern = '(?m)^model_reasoning_effort\s*=\s*"[^"]*"\s*\r?$'
-    $effortMatches = [regex]::Matches($updated, $effortPattern)
-    if ($effortMatches.Count -ne 1) {
-        throw "Expected exactly one reasoning-effort setting in $codexConfigPath."
-    }
     $updated = [regex]::Replace(
-        $updated,
-        $effortPattern,
-        'model_reasoning_effort = "high"',
+        $content,
+        $pattern,
+        'model = "' + $SelectedModel + '"',
         1
     )
     if ($updated -ceq $content) {
         return
     }
 
-    $backupDirectory = Join-Path $installRoot (
+    $backupDirectory = Join-Path $deepSeekRoot (
         'backups\model-switch\' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff')
     )
     New-Item -ItemType Directory -Force -Path $backupDirectory | Out-Null
@@ -171,23 +261,17 @@ function Set-SelectedModel {
 }
 
 function Invoke-HistoryRepair {
+    if (-not (Test-Path -LiteralPath $historyRepair -PathType Leaf)) {
+        return
+    }
     try {
         & $historyRepair -CodexHome $codexHome -Quiet
     }
     catch {
+        New-Item -ItemType Directory -Force -Path $logDirectory | Out-Null
         $safeMessage = [regex]::Replace(
             [string]$_.Exception.Message,
             '(?i)(Bearer\s+)[A-Za-z0-9._~+/=-]{8,}',
-            '$1<redacted>'
-        )
-        $safeMessage = [regex]::Replace(
-            $safeMessage,
-            '(?i)\bsk-[A-Za-z0-9_-]{12,}',
-            '<redacted-api-key>'
-        )
-        $safeMessage = [regex]::Replace(
-            $safeMessage,
-            '(?i)((?:api[_-]?key|auth[_-]?token)\s*[:=]\s*["'']?)[^\s,"'']{8,}',
             '$1<redacted>'
         )
         $safeMessage = [regex]::Replace(
@@ -196,124 +280,59 @@ function Invoke-HistoryRepair {
             ' '
         ).Trim()
         if ($safeMessage.Length -gt 1000) {
-            $safeMessage = $safeMessage.Substring(0, 1000) +
-                '... [truncated]'
-        }
-        $message = '{0:u} History repair warning: {1}' -f (
-            Get-Date
-        ), $safeMessage
-        $historyLogPath = Join-Path $logDirectory 'history-repair.log'
-        $encoding = New-Object System.Text.UTF8Encoding($false)
-        if (
-            (Test-Path -LiteralPath $historyLogPath) -and
-            (Get-Item -LiteralPath $historyLogPath).Length -ge 256KB
-        ) {
-            [IO.File]::Copy(
-                $historyLogPath,
-                "$historyLogPath.previous",
-                $true
-            )
-            [IO.File]::WriteAllText($historyLogPath, '', $encoding)
+            $safeMessage = $safeMessage.Substring(0, 1000) + '...'
         }
         [IO.File]::AppendAllText(
-            $historyLogPath,
-            $message + [Environment]::NewLine,
-            $encoding
+            (Join-Path $logDirectory 'history-repair-native.log'),
+            ('{0:u} History repair warning: {1}' -f (Get-Date), $safeMessage) +
+                [Environment]::NewLine,
+            (New-Object System.Text.UTF8Encoding($false))
         )
     }
 }
 
 try {
-    foreach ($requiredPath in @(
-        $bridgeExe,
-        $configPath,
-        $authPath,
+    $requiredPaths = @(
         $codexConfigPath,
-        $historyRepair,
-        $metadataRepair
-    )) {
-        if (-not (Test-Path -LiteralPath $requiredPath)) {
-            throw "Required setup file is missing: $requiredPath"
+        $modelCatalogPath,
+        $historyRepair
+    )
+    foreach ($requiredPath in $requiredPaths) {
+        if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
+            throw "Required DeepSeek native file is missing: $requiredPath"
         }
     }
 
+    $profile = Get-DeepSeekProfileState
     if ($ValidateOnly) {
-        $modelLine = [regex]::Match(
-            [IO.File]::ReadAllText($codexConfigPath, [Text.Encoding]::UTF8),
-            '(?m)^model\s*=\s*"([^"]*)"\s*\r?$'
-        )
-        if (-not $modelLine.Success) {
-            throw 'The DeepSeek model setting could not be read.'
-        }
-        $effortLine = [regex]::Match(
-            [IO.File]::ReadAllText($codexConfigPath, [Text.Encoding]::UTF8),
-            '(?m)^model_reasoning_effort\s*=\s*"([^"]*)"\s*\r?$'
-        )
-        if (-not $effortLine.Success) {
-            throw 'The DeepSeek reasoning-effort setting could not be read.'
-        }
-        $null = Get-LocalBridgeToken
         [ordered]@{
             Status = 'OK'
-            RequestedModel = $Model
-            CurrentModel = $modelLine.Groups[1].Value
-            CurrentReasoningEffort = $effortLine.Groups[1].Value
-            LocalAuthPresent = $true
-            HistoryRepair = $historyRepair
+            RequestedModel = $(
+                if ($Model) { $Model } else { '(preserve configured model)' }
+            )
+            CurrentModel = $profile.Model
+            CurrentProvider = $profile.Provider
+            CurrentBaseUrl = $profile.BaseUrl
+            CurrentWireApi = $profile.WireApi
+            CurrentReasoningEffort = $profile.ReasoningEffort
+            Models = $profile.Models
+            DeepSeekProfileRoot = $deepSeekRoot
+            CodexHome = $codexHome
+            ElectronData = $electronData
         }
         return
     }
 
     if (Get-Process -Name ChatGPT -ErrorAction SilentlyContinue) {
-        Show-CodexMessage 'Codex is already open. Quit Codex completely, then open the shortcut again to switch models.'
+        Show-CodexMessage 'Codex is already open. Quit Codex completely before switching modes.'
         exit 2
     }
 
     New-Item -ItemType Directory -Force -Path $logDirectory | Out-Null
     New-Item -ItemType Directory -Force -Path $electronData | Out-Null
-
+    Stop-LegacyMoonBridgeIfRecorded
     Set-SelectedModel -SelectedModel $Model
     Invoke-HistoryRepair
-
-    $localToken = Get-LocalBridgeToken
-    $headers = @{ Authorization = "Bearer $localToken" }
-
-    if (-not (Test-Bridge -Headers $headers)) {
-        $quotedConfigPath = '"' + $configPath.Replace('"', '\"') + '"'
-        $bridgeProcess = Start-Process `
-            -FilePath $bridgeExe `
-            -ArgumentList @('-config', $quotedConfigPath) `
-            -WorkingDirectory $installRoot `
-            -WindowStyle Hidden `
-            -RedirectStandardOutput (Join-Path $logDirectory 'moonbridge.stdout.log') `
-            -RedirectStandardError (Join-Path $logDirectory 'moonbridge.stderr.log') `
-            -PassThru
-        [IO.File]::WriteAllText($pidPath, [string]$bridgeProcess.Id)
-
-        $ready = $false
-        for ($attempt = 0; $attempt -lt 60; $attempt++) {
-            Start-Sleep -Milliseconds 250
-            if ($bridgeProcess.HasExited) {
-                break
-            }
-            if (Test-Bridge -Headers $headers) {
-                $ready = $true
-                break
-            }
-        }
-        if (-not $ready) {
-            if ($bridgeProcess -and -not $bridgeProcess.HasExited) {
-                Stop-Process -Id $bridgeProcess.Id -Force -ErrorAction SilentlyContinue
-            }
-            if (Test-Path -LiteralPath $pidPath) {
-                $recordedPid = (Get-Content -Raw -LiteralPath $pidPath).Trim()
-                if ($recordedPid -eq [string]$bridgeProcess.Id) {
-                    Remove-Item -LiteralPath $pidPath -Force -ErrorAction SilentlyContinue
-                }
-            }
-            throw 'The local DeepSeek bridge did not become ready. See the logs folder for details.'
-        }
-    }
 
     $appExe = Resolve-CodexDesktopExecutable
     $startInfo = New-Object System.Diagnostics.ProcessStartInfo
@@ -321,17 +340,15 @@ try {
     $startInfo.WorkingDirectory = Split-Path -Parent $appExe
     $startInfo.UseShellExecute = $false
     $startInfo.EnvironmentVariables['CODEX_HOME'] = $codexHome
-    $startInfo.EnvironmentVariables['CODEX_ELECTRON_USER_DATA_PATH'] =
-        $electronData
+    $startInfo.EnvironmentVariables['CODEX_ELECTRON_USER_DATA_PATH'] = $electronData
     $appProcess = [System.Diagnostics.Process]::Start($startInfo)
     if (-not $appProcess) {
         throw 'Codex did not start.'
     }
-
     $appProcess.WaitForExit()
     Invoke-HistoryRepair
 }
 catch {
-    Show-CodexMessage $_.Exception.Message 'Codex - DeepSeek setup error'
+    Show-CodexMessage $_.Exception.Message 'Codex - DeepSeek launch error'
     exit 1
 }

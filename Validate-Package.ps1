@@ -37,7 +37,6 @@ $requiredFiles = @(
     'payload\app\Start-Codex-Chooser.ps1',
     'payload\app\Start-Codex-ChatGPT.ps1',
     'payload\app\Start-Codex-DeepSeek.ps1',
-    'payload\app\Start-Codex-Native-Flash.ps1',
     'payload\app\Start-Codex-OpenAI-Transfer.ps1',
     'payload\app\Stop-DeepSeek-Bridge.ps1',
     'payload\app\Install-Desktop-Shortcuts.ps1',
@@ -50,13 +49,16 @@ $requiredFiles = @(
     'payload\app\README.md',
     'payload\app\AI-MAINTENANCE-GUIDE.md',
     'payload\app\EVOLVE-WITH-AI.md',
+    'payload\templates\native-config.template.toml',
+    'payload\templates\transfer-shared-config.template.toml',
     'payload\templates\bridge-config.template.yml',
     'payload\templates\bridge-codex-config.template.toml',
-    'payload\templates\native-config.template.toml',
     'payload\templates\transfer-pro-config.template.toml',
     'payload\templates\transfer-legacy-config.template.toml',
     'payload\catalogs\bridge-models_catalog.json',
-    'payload\catalogs\native-models.json'
+    'payload\catalogs\native-models.json',
+    'configuration\260909\README.md',
+    'configuration\260909\native-config.example.toml'
 )
 
 $errors = New-Object System.Collections.Generic.List[string]
@@ -184,14 +186,51 @@ foreach ($jsonFile in @($packageFiles | Where-Object { $_.Extension -eq '.json' 
     }
 }
 
+$nativeCatalogPath = Join-Path $packageRoot 'payload\catalogs\native-models.json'
+if (Test-Path -LiteralPath $nativeCatalogPath -PathType Leaf) {
+    try {
+        $nativeCatalog = Get-Content -Raw -LiteralPath $nativeCatalogPath |
+            ConvertFrom-Json
+        $nativeSlugs = @(
+            $nativeCatalog.models | ForEach-Object { [string]$_.slug }
+        )
+        foreach ($requiredNativeModel in @(
+            'deepseek-v4-pro',
+            'deepseek-v4-flash',
+            'deepseek-v4-flash-vision-exp'
+        )) {
+            if ($nativeSlugs -notcontains $requiredNativeModel) {
+                $errors.Add(
+                    "Native DeepSeek catalog is missing $requiredNativeModel."
+                )
+            }
+        }
+        $visionModel = @(
+            $nativeCatalog.models |
+                Where-Object { $_.slug -eq 'deepseek-v4-flash-vision-exp' }
+        )
+        if (
+            $visionModel.Count -eq 1 -and
+            @($visionModel[0].input_modalities) -notcontains 'image'
+        ) {
+            $errors.Add(
+                'Native DeepSeek vision model does not advertise image input.'
+            )
+        }
+    }
+    catch {
+        $errors.Add('Could not inspect the native DeepSeek model catalog.')
+    }
+}
+
 $chooserPath = Join-Path $packageRoot 'payload\app\Start-Codex-Chooser.ps1'
 if (Test-Path -LiteralPath $chooserPath -PathType Leaf) {
     $chooserText = [IO.File]::ReadAllText($chooserPath, [Text.Encoding]::UTF8)
     foreach ($marker in @(
-        'function Select-OpenAITransferMode',
-        'TransferProButton',
-        'TransferLegacyButton',
-        'Width="500"'
+        'DeepSeekButton',
+        'TransferButton',
+        'shared profile',
+        'Width="700"'
     )) {
         if ($chooserText.IndexOf($marker, [StringComparison]::Ordinal) -lt 0) {
             $errors.Add("Vibe launcher UI marker is missing: $marker")
@@ -246,6 +285,10 @@ $templateChecks = [ordered]@{
     'payload\templates\native-config.template.toml' = @(
         '__NATIVE_CATALOG_PATH_JSON__',
         '__DEEPSEEK_API_KEY_JSON__'
+    )
+    'payload\templates\transfer-shared-config.template.toml' = @(
+        '__TRANSFER_MODEL_JSON__',
+        '__TRANSFER_REASONING_JSON__'
     )
     'payload\templates\transfer-pro-config.template.toml' = @(
         '__TRANSFER_PRO_MODEL_JSON__',

@@ -3,7 +3,7 @@ model_provider = "deepseek"
 preferred_auth_method = "apikey"
 forced_login_method = "api"
 model_reasoning_effort = "high"
-model_catalog_json = __NATIVE_CATALOG_PATH_JSON__
+model_catalog_json = "__LOCAL_DEEPSEEK_PROFILE__\\codex-home\\models.json"
 approval_policy = "on-request"
 sandbox_mode = "workspace-write"
 
@@ -11,4 +11,4 @@ sandbox_mode = "workspace-write"
 name = "DeepSeek"
 base_url = "https://api.deepseek.com/"
 wire_api = "responses"
-experimental_bearer_token = __DEEPSEEK_API_KEY_JSON__
+experimental_bearer_token = "__DEEPSEEK_API_KEY__"

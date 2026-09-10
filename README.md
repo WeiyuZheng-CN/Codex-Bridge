@@ -3,8 +3,8 @@
 这不是一个要求用户理解配置文件的传统安装器，而是一套可以交给 AI
 安装、适配和继续生长的软件核心。
 
-它包含漂亮的四卡片启动界面、各模式的启动逻辑、无密钥配置模板、
-Moon Bridge 及源码，以及供安装 agent 理解架构的说明。它不包含 API Key、
+它包含漂亮的三入口启动界面、各模式的启动逻辑、无密钥配置模板、
+Moon Bridge 历史兼容资源，以及供安装 agent 理解架构的说明。它不包含 API Key、
 个人登录、会话、日志或某台电脑的运行数据。
 
 ## 最简单的用法
@@ -17,11 +17,14 @@ Moon Bridge 及源码，以及供安装 agent 理解架构的说明。它不包�
    私密密钥文件路径；不要把密钥发进聊天。
 6. 安装完成后结束当前任务，完全退出 Codex，再打开桌面的 `Codex` 快捷方式。
 
-可选模式包括 ChatGPT、DeepSeek V4 Pro、DeepSeek V4 Flash、
-`OpenAI-transfer-Pro` 和 `OpenAI-transfer`。未安装的模式仍保留在漂亮界面中，
+可选模式包括 ChatGPT、DeepSeek（V4 Pro、V4 Flash、V4 Flash Vision）和
+OpenAI Transfer。Transfer 使用一份 `auth.json` 配置；
+`OpenAI-transfer-Pro` 与 `OpenAI-transfer` 由中转站网页对同一个 Key 做服务端切换。
+未安装的模式仍保留在漂亮界面中，
 但会淡化显示；以后可以让 agent 补装。
 
-仓库还提供 `configuration/260902` 的脱敏中转站参考配置。需要最新配置或
+仓库还提供 `configuration/260902` 的脱敏中转站参考配置和
+`configuration/260909` 的官方 native/vision 参考。需要最新配置或
 凭据时，agent 会让用户打开 <https://ai-pixel.online/keys> 并点击“使用密匙”；
 页面返回的信息应保存在仓库外或通过本地隐藏输入框使用，不能粘贴到聊天或
 提交到 GitHub。
@@ -36,3 +39,14 @@ Moon Bridge 及源码，以及供安装 agent 理解架构的说明。它不包�
 
 安装提示语在 `START-HERE-FOR-AI.md`，后续改造提示语在
 `EVOLVE-WITH-AI.md`，具体架构在 `AI-INSTALLATION-GUIDE.md`。
+
+中转站官方资料：
+
+- <https://docs.ai-pixel.online/docs/api>
+- <https://docs.ai-pixel.online/docs/api/responses>
+- <https://docs.ai-pixel.online/docs/api/models>
+- <https://docs.ai-pixel.online/docs/normal-client-setup>
+- <https://docs.ai-pixel.online/docs/normal-account-mode>
+
+如果“使用密匙”返回 API Key Mode 或额外 actor 请求头，agent 应保留兼容配置，
+不要强行套用共享 `auth.json` 形状。

@@ -2,7 +2,8 @@
 param(
     [string[]]$Modes = @(),
     [string]$DeepSeekKeyFile = '',
-    [Alias('TransferKeyFile')]
+    [Alias('OpenAITransferKeyFile')]
+    [string]$TransferKeyFile = '',
     [string]$TransferProKeyFile = '',
     [string]$TransferLegacyKeyFile = '',
     [string]$TransferLegacyActorFile = '',
@@ -51,23 +52,28 @@ function Resolve-InstallModes {
     $validModes = @(
         'ChatGPT',
         'DeepSeek',
-        'NativeFlash',
-        'TransferPro',
-        'TransferLegacy'
+        'Transfer'
     )
     $aliases = @{
         'chatgpt' = 'ChatGPT'
         'deepseek' = 'DeepSeek'
         'deepseekpro' = 'DeepSeek'
         'deepseek-v4-pro' = 'DeepSeek'
-        'native' = 'NativeFlash'
-        'nativeflash' = 'NativeFlash'
-        'deepseek-v4-flash' = 'NativeFlash'
-        'transfer' = 'TransferPro'
-        'transferpro' = 'TransferPro'
-        'openai-transfer-pro' = 'TransferPro'
-        'transferlegacy' = 'TransferLegacy'
-        'openai-transfer' = 'TransferLegacy'
+        # Old installers exposed Flash separately. Keep the old names as
+        # compatibility aliases for the single native DeepSeek entrance.
+        'native' = 'DeepSeek'
+        'nativeflash' = 'DeepSeek'
+        'deepseek-v4-flash' = 'DeepSeek'
+        'deepseek-v4-flash-vision-exp' = 'DeepSeek'
+        'deepseekvision' = 'DeepSeek'
+        # The station now routes Pro/Legacy on the server for the same key.
+        # Keep the old names as aliases so existing AI installation prompts
+        # continue to work, while new installs create one local Transfer mode.
+        'transfer' = 'Transfer'
+        'transferpro' = 'Transfer'
+        'openai-transfer-pro' = 'Transfer'
+        'transferlegacy' = 'Transfer'
+        'openai-transfer' = 'Transfer'
         'all' = 'all'
     }
 
@@ -112,13 +118,10 @@ function Resolve-InstallModes {
     $inferred = New-Object System.Collections.Generic.List[string]
     if ($DeepSeekKeyFile) {
         $inferred.Add('DeepSeek')
-        $inferred.Add('NativeFlash')
     }
-    if ($TransferProKeyFile) {
-        $inferred.Add('TransferPro')
-    }
-    if ($TransferLegacyKeyFile -or $TransferLegacyActorFile) {
-        $inferred.Add('TransferLegacy')
+    if ($TransferKeyFile -or $TransferProKeyFile -or
+        $TransferLegacyKeyFile -or $TransferLegacyActorFile) {
+        $inferred.Add('Transfer')
     }
     if ($inferred.Count -gt 0) {
         $withChatGPT = New-Object System.Collections.Generic.List[string]
@@ -140,7 +143,7 @@ function Resolve-InstallModes {
     Write-Host ''
     Write-Host 'Choose the modes to install.' -ForegroundColor White
     Write-Host 'Press Enter for all modes, or type names separated by commas:'
-    Write-Host 'ChatGPT, DeepSeek, NativeFlash, TransferPro, TransferLegacy'
+    Write-Host 'ChatGPT, DeepSeek, Transfer'
     $answer = Read-Host 'Modes'
     if ([string]::IsNullOrWhiteSpace($answer)) {
         return $validModes
@@ -378,6 +381,41 @@ function Get-RequiredSecret {
     return $value
 }
 
+function Resolve-TransferKeyPath {
+    $candidates = @(
+        [pscustomobject]@{ Name = 'TransferKeyFile'; Path = $TransferKeyFile },
+        [pscustomobject]@{ Name = 'TransferProKeyFile'; Path = $TransferProKeyFile },
+        [pscustomobject]@{ Name = 'TransferLegacyKeyFile'; Path = $TransferLegacyKeyFile }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_.Path) }
+
+    if (@($candidates).Count -eq 0) {
+        return ''
+    }
+
+    $normalized = @{}
+    foreach ($candidate in $candidates) {
+        $fullPath = ConvertTo-NormalizedPath ([string]$candidate.Path)
+        if (-not (Test-Path -LiteralPath $fullPath -PathType Leaf)) {
+            throw "$($candidate.Name) was not found: $fullPath"
+        }
+        $key = $fullPath.ToLowerInvariant()
+        if (-not $normalized.ContainsKey($key)) {
+            $normalized[$key] = New-Object System.Collections.Generic.List[string]
+        }
+        $normalized[$key].Add([string]$candidate.Name)
+    }
+
+    if ($normalized.Count -gt 1) {
+        throw (
+            'Use one Transfer key file for the shared profile. Supplied files ' +
+            'resolve to different paths: ' +
+            (($normalized.Values | ForEach-Object { $_ -join ', ' }) -join '; ')
+        )
+    }
+    $firstKey = @($normalized.Keys)[0]
+    return [string]$firstKey
+}
+
 function ConvertTo-JsonString {
     param(
         [Parameter(Mandatory = $true)]
@@ -422,18 +460,6 @@ function Expand-PackageTemplate {
         throw "An unresolved placeholder remains in $TemplatePath."
     }
     return $content
-}
-
-function New-LocalBridgeToken {
-    $bytes = New-Object byte[] 32
-    $generator = [Security.Cryptography.RandomNumberGenerator]::Create()
-    try {
-        $generator.GetBytes($bytes)
-    }
-    finally {
-        $generator.Dispose()
-    }
-    return ([BitConverter]::ToString($bytes) -replace '-', '').ToLowerInvariant()
 }
 
 function Install-TextFileAtomically {
@@ -658,8 +684,10 @@ if (Test-PathInside -Candidate $ProfilesRoot -Parent $packageRoot) {
     throw 'ProfilesRoot must be outside the extracted portable package.'
 }
 
-$nativeRoot = Join-Path $ProfilesRoot 'deepseek-native-test'
 $transferRoot = Join-Path $ProfilesRoot 'ai-pixel-relay'
+$transferLegacyRoot = Join-Path $transferRoot 'legacy-transfer'
+$deepSeekRoot = Join-Path $ProfilesRoot 'deepseek-native-test'
+$deepSeekCatalogPath = Join-Path $deepSeekRoot 'codex-home\models.json'
 $friendlyLinkPath = Join-Path $ProfilesRoot 'Codex-Launcher'
 
 if ($ValidateOnly) {
@@ -669,23 +697,12 @@ if ($ValidateOnly) {
             -Label 'DeepSeek API key'
         $checkedDeepSeek = $null
     }
-    if ($TransferProKeyFile) {
-        $checkedTransferPro = Get-SecretFromFile `
-            -Path $TransferProKeyFile `
-            -Label 'OpenAI-transfer-Pro key'
-        $checkedTransferPro = $null
-    }
-    if ($TransferLegacyKeyFile) {
-        $checkedTransferLegacy = Get-SecretFromFile `
-            -Path $TransferLegacyKeyFile `
-            -Label 'OpenAI-transfer key'
-        $checkedTransferLegacy = $null
-    }
-    if ($TransferLegacyActorFile) {
-        $checkedTransferActor = Get-SecretFromFile `
-            -Path $TransferLegacyActorFile `
-            -Label 'OpenAI-transfer actor authorization'
-        $checkedTransferActor = $null
+    $resolvedTransferKeyFile = Resolve-TransferKeyPath
+    if ($resolvedTransferKeyFile) {
+        $checkedTransfer = Get-SecretFromFile `
+            -Path $resolvedTransferKeyFile `
+            -Label 'OpenAI Transfer key'
+        $checkedTransfer = $null
     }
     [ordered]@{
         Status = 'OK'
@@ -694,8 +711,10 @@ if ($ValidateOnly) {
         CodexExecutable = $resolvedCodexExecutable
         InstallRoot = $InstallRoot
         ProfilesRoot = $ProfilesRoot
+        DeepSeekProfileRoot = $deepSeekRoot
         CredentialFilesChecked = [bool](
             $DeepSeekKeyFile -or
+            $TransferKeyFile -or
             $TransferProKeyFile -or
             $TransferLegacyKeyFile -or
             $TransferLegacyActorFile
@@ -722,34 +741,20 @@ if (Test-Path -LiteralPath $targetPidPath) {
     }
 }
 
-${needsBridge} = $selectedModes -contains 'DeepSeek'
-${needsNativeFlash} = $selectedModes -contains 'NativeFlash'
-${needsDeepSeek} = ${needsBridge} -or ${needsNativeFlash}
-${needsTransferPro} = $selectedModes -contains 'TransferPro'
-${needsTransferLegacy} = $selectedModes -contains 'TransferLegacy'
+${needsDeepSeek} = $selectedModes -contains 'DeepSeek'
+${needsTransfer} = $selectedModes -contains 'Transfer'
 
 # Keep all secret-bearing variables initialized so a failed adaptation can
 # still cleanly release them in the finally block below.
 $deepSeekKey = ''
-$transferProKey = ''
-$transferLegacyKey = ''
-$transferLegacyActor = ''
-$localBridgeToken = ''
+$transferKey = ''
 $deepSeekKeyJson = ''
-$transferProModelJson = ''
-$transferLegacyModelJson = ''
-$transferProReasoningJson = ''
-$transferLegacyReasoningJson = ''
-$transferLegacyActorJson = ''
-$localTokenJson = ''
-$bridgeConfig = ''
-$bridgeCodexConfig = ''
+$transferModelJson = ''
+$transferReasoningJson = ''
 $nativeConfig = ''
-$transferProConfig = ''
-$transferLegacyConfig = ''
-$bridgeAuth = ''
-$transferProAuth = ''
-$transferLegacyAuth = ''
+$transferConfig = ''
+$transferAuth = ''
+$resolvedTransferKeyFile = ''
 
 Write-InstallStep 'Reading only the credentials needed by the selected modes...'
 if (${needsDeepSeek}) {
@@ -758,108 +763,53 @@ if (${needsDeepSeek}) {
         -Label 'DeepSeek API key' `
         -Prompt 'Enter the DeepSeek API key'
 }
-if (${needsTransferPro}) {
-    $transferProKey = Get-RequiredSecret `
-        -Path $TransferProKeyFile `
-        -Label 'OpenAI-transfer-Pro key' `
-        -Prompt 'Enter the OpenAI-transfer-Pro key'
+if (${needsTransfer}) {
+    $resolvedTransferKeyFile = Resolve-TransferKeyPath
+    $transferKey = Get-RequiredSecret `
+        -Path $resolvedTransferKeyFile `
+        -Label 'OpenAI Transfer key' `
+        -Prompt 'Enter the OpenAI Transfer key'
 }
-if (${needsTransferLegacy}) {
-    $transferLegacyKey = Get-RequiredSecret `
-        -Path $TransferLegacyKeyFile `
-        -Label 'OpenAI-transfer key' `
-        -Prompt 'Enter the OpenAI-transfer key'
-    if (-not $TransferLegacyWithoutActor) {
-        $transferLegacyActor = Get-RequiredSecret `
-            -Path $TransferLegacyActorFile `
-            -Label 'OpenAI-transfer actor authorization' `
-            -Prompt 'Enter the OpenAI-transfer actor authorization value'
-    }
-}
-if (${needsBridge}) {
-    $localBridgeToken = New-LocalBridgeToken
-}
-
 $deepSeekKeyJson = ConvertTo-JsonString $deepSeekKey
-$transferProModelJson = ConvertTo-JsonString $TransferProModel
-$transferLegacyModelJson = ConvertTo-JsonString $TransferLegacyModel
-$transferProReasoningJson = ConvertTo-JsonString $TransferProReasoningEffort
-$transferLegacyReasoningJson = ConvertTo-JsonString $TransferLegacyReasoningEffort
-$transferLegacyActorJson = ConvertTo-JsonString $transferLegacyActor
-$localTokenJson = ConvertTo-JsonString $localBridgeToken
-$bridgeCatalogPath = Join-Path $InstallRoot 'codex-home\models_catalog.json'
-$nativeCatalogPath = Join-Path $nativeRoot 'codex-home\models.json'
-$transferLegacyRoot = Join-Path $transferRoot 'legacy-transfer'
+$transferModelJson = ConvertTo-JsonString $TransferProModel
+$transferReasoningJson = ConvertTo-JsonString $TransferProReasoningEffort
 
-if (${needsBridge}) {
-    $bridgeConfig = Expand-PackageTemplate `
-        -TemplatePath (Join-Path $templateRoot 'bridge-config.template.yml') `
-        -Values @{
-            '__LOCAL_BRIDGE_TOKEN_JSON__' = $localTokenJson
-            '__DEEPSEEK_API_KEY_JSON__' = $deepSeekKeyJson
-        }
-    $bridgeCodexConfig = Expand-PackageTemplate `
-        -TemplatePath (Join-Path $templateRoot 'bridge-codex-config.template.toml') `
-        -Values @{
-            '__BRIDGE_CATALOG_PATH_JSON__' = (
-                ConvertTo-JsonString $bridgeCatalogPath
-            )
-        }
-    $bridgeAuth = [ordered]@{
-        auth_mode = 'apikey'
-        OPENAI_API_KEY = $localBridgeToken
-    } | ConvertTo-Json
-}
-if (${needsNativeFlash}) {
+if (${needsDeepSeek}) {
     $nativeConfig = Expand-PackageTemplate `
         -TemplatePath (Join-Path $templateRoot 'native-config.template.toml') `
         -Values @{
             '__NATIVE_CATALOG_PATH_JSON__' = (
-                ConvertTo-JsonString $nativeCatalogPath
+                ConvertTo-JsonString $deepSeekCatalogPath
             )
             '__DEEPSEEK_API_KEY_JSON__' = $deepSeekKeyJson
         }
 }
-if (${needsTransferPro}) {
-    $transferProConfig = Expand-PackageTemplate `
-        -TemplatePath (Join-Path $templateRoot 'transfer-pro-config.template.toml') `
+if (${needsTransfer}) {
+    $transferConfig = Expand-PackageTemplate `
+        -TemplatePath (Join-Path $templateRoot 'transfer-shared-config.template.toml') `
         -Values @{
-            '__TRANSFER_PRO_MODEL_JSON__' = $transferProModelJson
-            '__TRANSFER_PRO_REASONING_JSON__' = $transferProReasoningJson
+            '__TRANSFER_MODEL_JSON__' = $transferModelJson
+            '__TRANSFER_REASONING_JSON__' = $transferReasoningJson
         }
-    $transferProAuth = [ordered]@{
-        OPENAI_API_KEY = $transferProKey
-    } | ConvertTo-Json
-}
-if (${needsTransferLegacy}) {
-    $transferLegacyConfig = Expand-PackageTemplate `
-        -TemplatePath (Join-Path $templateRoot 'transfer-legacy-config.template.toml') `
-        -Values @{
-            '__TRANSFER_LEGACY_MODEL_JSON__' = $transferLegacyModelJson
-            '__TRANSFER_LEGACY_REASONING_JSON__' = $transferLegacyReasoningJson
-            '__TRANSFER_LEGACY_ACTOR_JSON__' = $transferLegacyActorJson
-        }
-    if ($TransferLegacyWithoutActor) {
-        $transferLegacyConfig = [regex]::Replace(
-            $transferLegacyConfig,
-            '(?m)^http_headers\s*=.*(?:\r?\n|$)',
-            ''
-        )
-    }
-    $transferLegacyAuth = [ordered]@{
-        OPENAI_API_KEY = $transferLegacyKey
+    $transferAuth = [ordered]@{
+        OPENAI_API_KEY = $transferKey
     } | ConvertTo-Json
 }
 
 $launcherSettings = [ordered]@{
-    schema_version = 3
+    schema_version = 5
     enabled_modes = @($selectedModes)
     codex_executable = $resolvedCodexExecutable
-    native_profile_root = $nativeRoot
+    deepseek_profile_root = $deepSeekRoot
+    deepseek_transport = 'native'
+    deepseek_models = @(
+        'deepseek-v4-pro',
+        'deepseek-v4-flash',
+        'deepseek-v4-flash-vision-exp'
+    )
     transfer_profile_root = $transferRoot
-    transfer_pro_profile_root = $transferRoot
-    transfer_legacy_profile_root = $transferLegacyRoot
-    transfer_legacy_actor_optional = [bool]$TransferLegacyWithoutActor
+    transfer_shared_profile_root = $transferRoot
+    transfer_profile_strategy = 'shared-auth-json'
 } | ConvertTo-Json -Depth 5
 
 $installParent = Split-Path -Parent $InstallRoot
@@ -884,23 +834,6 @@ try {
             -Force
     }
 
-    if (${needsBridge}) {
-        $stageCodexHome = Join-Path $stageRoot 'codex-home'
-        New-Item -ItemType Directory -Force -Path $stageCodexHome | Out-Null
-        Copy-Item `
-            -LiteralPath (Join-Path $catalogRoot 'bridge-models_catalog.json') `
-            -Destination (Join-Path $stageCodexHome 'models_catalog.json') `
-            -Force
-        Write-Utf8Text `
-            -Path (Join-Path $stageRoot 'config.yml') `
-            -Content $bridgeConfig
-        Write-Utf8Text `
-            -Path (Join-Path $stageCodexHome 'config.toml') `
-            -Content $bridgeCodexConfig
-        Write-Utf8Text `
-            -Path (Join-Path $stageCodexHome 'auth.json') `
-            -Content $bridgeAuth
-    }
     Write-Utf8Text `
         -Path (Join-Path $stageRoot 'launcher.settings.json') `
         -Content $launcherSettings
@@ -936,21 +869,18 @@ try {
     }
 
     Write-InstallStep 'Creating the isolated DeepSeek and Transfer profiles...'
-    $nativeBackupRoot = Join-Path $nativeRoot (
-        'backups\portable-installer\' + $installStamp
-    )
-    $transferProBackupRoot = Join-Path $transferRoot (
-        'backups\portable-installer\' + $installStamp
-    )
-    $transferLegacyBackupRoot = Join-Path $transferLegacyRoot (
+    $transferBackupRoot = Join-Path $transferRoot (
         'backups\portable-installer\' + $installStamp
     )
 
-    if (${needsNativeFlash}) {
+    if (${needsDeepSeek}) {
+        $deepSeekBackupRoot = Join-Path $deepSeekRoot (
+            'backups\portable-installer\' + $installStamp
+        )
         $change = Install-TextFileAtomically `
-            -TargetPath (Join-Path $nativeRoot 'codex-home\config.toml') `
+            -TargetPath (Join-Path $deepSeekRoot 'codex-home\config.toml') `
             -Content $nativeConfig `
-            -BackupRoot $nativeBackupRoot `
+            -BackupRoot $deepSeekBackupRoot `
             -BackupName 'config.toml'
         $null = $profileChanges.Add($change)
 
@@ -959,41 +889,25 @@ try {
             [Text.Encoding]::UTF8
         )
         $change = Install-TextFileAtomically `
-            -TargetPath $nativeCatalogPath `
+            -TargetPath $deepSeekCatalogPath `
             -Content $nativeCatalog `
-            -BackupRoot $nativeBackupRoot `
+            -BackupRoot $deepSeekBackupRoot `
             -BackupName 'models.json'
         $null = $profileChanges.Add($change)
     }
 
-    if (${needsTransferPro}) {
+    if (${needsTransfer}) {
         $change = Install-TextFileAtomically `
             -TargetPath (Join-Path $transferRoot 'codex-home\config.toml') `
-            -Content $transferProConfig `
-            -BackupRoot $transferProBackupRoot `
+            -Content $transferConfig `
+            -BackupRoot $transferBackupRoot `
             -BackupName 'config.toml'
         $null = $profileChanges.Add($change)
 
         $change = Install-TextFileAtomically `
             -TargetPath (Join-Path $transferRoot 'codex-home\auth.json') `
-            -Content $transferProAuth `
-            -BackupRoot $transferProBackupRoot `
-            -BackupName 'auth.json'
-        $null = $profileChanges.Add($change)
-    }
-
-    if (${needsTransferLegacy}) {
-        $change = Install-TextFileAtomically `
-            -TargetPath (Join-Path $transferLegacyRoot 'codex-home\config.toml') `
-            -Content $transferLegacyConfig `
-            -BackupRoot $transferLegacyBackupRoot `
-            -BackupName 'config.toml'
-        $null = $profileChanges.Add($change)
-
-        $change = Install-TextFileAtomically `
-            -TargetPath (Join-Path $transferLegacyRoot 'codex-home\auth.json') `
-            -Content $transferLegacyAuth `
-            -BackupRoot $transferLegacyBackupRoot `
+            -Content $transferAuth `
+            -BackupRoot $transferBackupRoot `
             -BackupName 'auth.json'
         $null = $profileChanges.Add($change)
     }
@@ -1006,10 +920,8 @@ try {
     }
 
     foreach ($sensitivePath in @(
-        (Join-Path $InstallRoot 'config.yml'),
-        (Join-Path $InstallRoot 'codex-home\auth.json'),
-        (Join-Path $nativeRoot 'codex-home\config.toml'),
-        (Join-Path $nativeRoot 'codex-home\models.json'),
+        (Join-Path $deepSeekRoot 'codex-home\config.toml'),
+        $deepSeekCatalogPath,
         (Join-Path $transferRoot 'codex-home\config.toml'),
         (Join-Path $transferRoot 'codex-home\auth.json'),
         (Join-Path $transferLegacyRoot 'codex-home\config.toml'),
@@ -1049,21 +961,13 @@ catch {
 }
 finally {
     $deepSeekKey = $null
-    $transferProKey = $null
-    $transferLegacyKey = $null
-    $transferLegacyActor = $null
-    $localBridgeToken = $null
+    $transferKey = $null
     $deepSeekKeyJson = $null
-    $transferProModelJson = $null
-    $transferLegacyModelJson = $null
-    $transferProReasoningJson = $null
-    $transferLegacyReasoningJson = $null
-    $transferLegacyActorJson = $null
+    $transferModelJson = $null
+    $transferReasoningJson = $null
     $nativeConfig = $null
-    $transferProConfig = $null
-    $transferLegacyConfig = $null
-    $transferProAuth = $null
-    $transferLegacyAuth = $null
+    $transferConfig = $null
+    $transferAuth = $null
 }
 
 $friendlyResult = $null
@@ -1112,10 +1016,17 @@ $manifest = [ordered]@{
     codex_executable_at_install = $resolvedCodexExecutable
     install_root = $InstallRoot
     profiles_root = $ProfilesRoot
-    native_profile_root = $nativeRoot
+    deepseek_profile_root = $deepSeekRoot
+    deepseek_transport = 'native'
+    deepseek_models = @(
+        'deepseek-v4-pro',
+        'deepseek-v4-flash',
+        'deepseek-v4-flash-vision-exp'
+    )
     transfer_profile_root = $transferRoot
-    transfer_pro_profile_root = $transferRoot
-    transfer_legacy_profile_root = $transferLegacyRoot
+    transfer_shared_profile_root = $transferRoot
+    transfer_profile_strategy = 'shared-auth-json'
+    transfer_reference = '260902'
     friendly_link = $(if ($NoFriendlyLink) { $null } else { $friendlyLinkPath })
     desktop_shortcut = $(
         if ($NoDesktopShortcut -or [string]::IsNullOrWhiteSpace($DesktopPath)) {
@@ -1126,7 +1037,6 @@ $manifest = [ordered]@{
         }
     )
     prior_install_backup = $installBackupPath
-    transfer_legacy_actor_optional = [bool]$TransferLegacyWithoutActor
     credentials_bundled = $false
 }
 Write-Utf8Text `

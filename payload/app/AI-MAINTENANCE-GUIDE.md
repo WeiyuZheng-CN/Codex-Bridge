@@ -10,19 +10,40 @@ path, profile roots, selected modes, and package version, but contain no keys.
 Codex desktop shortcut
   -> Start-Codex-Chooser.ps1
      -> ChatGPT profile
-     -> DeepSeek V4 Pro -> local Moon Bridge -> DeepSeek
-     -> DeepSeek V4 Flash -> native DeepSeek Responses API
-     -> OpenAI Transfer -> concise Pro/Legacy selector -> station API
+     -> DeepSeek -> native DeepSeek Responses API
+          -> Codex model picker: V4 Pro / V4 Flash / V4 Flash Vision
+     -> OpenAI Transfer -> shared auth.json profile -> station API
+          -> Pro/Legacy selected in the station web console
 ```
 
-The chooser stays visually minimal. Modes not listed in `enabled_modes` are
-visible but dimmed. Do not diagnose a dim card as a WPF failure; configure its
-profile and add the mode when the user wants it.
+The main chooser has one DeepSeek card. The native DeepSeek profile exposes
+`deepseek-v4-pro`, `deepseek-v4-flash`, and
+`deepseek-v4-flash-vision-exp` through the same provider entrance. The vision
+model accepts JPEG, PNG, GIF, and WebP images as Responses API `input_image`
+parts. The former Moon Bridge route remains in the application only as a
+historical compatibility resource.
+
+The current public reference is `configuration\260909`. An old
+`NativeFlash` installer argument may still appear in a user's history, but it
+maps to this same native DeepSeek entry; it must not create a second card or a
+second model-selection dialog.
 
 Provider profiles and Electron data are isolated. ChatGPT uses the normal
-Codex profile as-is. Transfer Pro and Legacy remain separate because their
-credentials and authentication shapes may differ even when their endpoint is
-the same.
+Codex profile as-is. The shared Transfer profile uses one station key in
+`auth.json`; the web console chooses Pro or Legacy routing for that key. The
+historical 260902 API Key Mode profile may remain under `legacy-transfer` for
+rollback when a station still requires an environment key or actor header.
+
+For current station behavior, read:
+
+- <https://docs.ai-pixel.online/docs/api>
+- <https://docs.ai-pixel.online/docs/api/responses>
+- <https://docs.ai-pixel.online/docs/api/models>
+- <https://docs.ai-pixel.online/docs/normal-client-setup>
+- <https://docs.ai-pixel.online/docs/normal-account-mode>
+
+When a key or generated configuration is needed, have the user open
+<https://ai-pixel.online/keys> and click **使用密匙**. Keep the result private.
 
 ## Agent maintenance rule
 
@@ -40,6 +61,11 @@ Do not require every unrelated mode or remote API to pass before accepting a
 local change. `SKIPPED` means a mode is not configured. A local `OK` result is
 not proof of remote key, quota, account, or station availability.
 
+If the station changes its generated configuration, compare the current
+**使用密匙** output with the shared profile. Keep one profile when both web
+modes use the same `auth.json` shape; retain or restore `legacy-transfer` when
+API Key Mode or an actor header is required.
+
 ## Boundaries
 
 - Never expose or copy values from `auth.json`, generated `config.yml`, or
@@ -53,4 +79,3 @@ not proof of remote key, quota, account, or station availability.
 
 When a useful feature should be shared, export only sanitized source,
 templates, prompts, and documentation—not the configured installation.
-

@@ -46,6 +46,8 @@ def shorten(text: str, maximum: int = 92) -> str:
 
 
 def model_label(model: str) -> str:
+    if model == "deepseek-v4-flash-vision-exp":
+        return "DeepSeek V4 Flash Vision"
     if model == "deepseek-v4-flash":
         return "DeepSeek V4 Flash"
     return "DeepSeek V4 Pro"

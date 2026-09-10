@@ -22,3 +22,5 @@ LOCAL-CHANGES.md
 *.install-*
 *.backup-*
 
+# Personal exported configuration bundle kept outside source history
+configuration/260902.zip
