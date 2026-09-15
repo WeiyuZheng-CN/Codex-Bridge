@@ -21,6 +21,18 @@ LOCAL-CHANGES.md
 *.tmp
 *.install-*
 *.backup-*
+work/
 
 # Personal exported configuration bundle kept outside source history
 configuration/260902.zip
+
+# Large local model and runtime artifacts
+*.gguf
+*.gguf.*
+*.safetensors
+*.pt
+*.pth
+local-qwen36/
+local-qwen36-codex/
+llama-*-bin-*.zip
+cudart-*-bin-*.zip

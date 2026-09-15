@@ -8,57 +8,34 @@ $ErrorActionPreference = 'Stop'
 
 $packageRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-function Get-Sha256Hex {
-    param([Parameter(Mandatory = $true)][string]$Path)
-
-    $stream = [IO.File]::OpenRead($Path)
-    $hasher = [Security.Cryptography.SHA256]::Create()
-    try {
-        $bytes = $hasher.ComputeHash($stream)
-        return ([BitConverter]::ToString($bytes) -replace '-', '')
-    }
-    finally {
-        $hasher.Dispose()
-        $stream.Dispose()
-    }
-}
-
 $requiredFiles = @(
     'AGENTS.md',
     'START-HERE-FOR-AI.md',
     'README.md',
-    'INSTALL-WITH-AI.md',
-    'EVOLVE-WITH-AI.md',
-    'AI-INSTALLATION-GUIDE.md',
+    'docs\EVOLVE-WITH-AI.md',
+    'docs\ARCHITECTURE.md',
+    'docs\LOCAL-QWEN36-INTEGRATION.md',
+    'docs\LOCAL-QWEN36-AI-MAINTENANCE-GUIDEBOOK.md',
     'Install.cmd',
     'Install-Codex-Provider-Launcher.ps1',
     'Validate-Package.ps1',
     'package-info.json',
-    'payload\app\Start-Codex-Chooser.ps1',
-    'payload\app\Start-Codex-ChatGPT.ps1',
-    'payload\app\Start-Codex-DeepSeek.ps1',
-    'payload\app\Start-Codex-OpenAI-Transfer.ps1',
-    'payload\app\Stop-DeepSeek-Bridge.ps1',
-    'payload\app\Install-Desktop-Shortcuts.ps1',
-    'payload\app\maintenance\history\Repair-DeepSeek-History.ps1',
-    'payload\app\maintenance\history\Repair-DeepSeek-HistoryMetadata.py',
-    'payload\app\Codex.ico',
-    'payload\app\moonbridge.exe',
-    'payload\app\MOON-BRIDGE-LICENSE.txt',
-    'payload\app\build-info.json',
-    'payload\app\README.md',
-    'payload\app\AI-MAINTENANCE-GUIDE.md',
-    'payload\app\EVOLVE-WITH-AI.md',
-    'payload\templates\native-config.template.toml',
-    'payload\templates\transfer-shared-config.template.toml',
-    'payload\templates\bridge-config.template.yml',
-    'payload\templates\bridge-codex-config.template.toml',
-    'payload\templates\transfer-pro-config.template.toml',
-    'payload\templates\transfer-legacy-config.template.toml',
-    'payload\catalogs\bridge-models_catalog.json',
-    'payload\catalogs\native-models.json',
-    'configuration\260909\README.md',
-    'configuration\260909\native-config.example.toml'
+    'core\app\Start-Codex-Chooser.ps1',
+    'core\app\Start-Codex-ChatGPT.ps1',
+    'core\app\Start-Codex-DeepSeek.ps1',
+    'core\app\Start-Codex-OpenAI-Transfer.ps1',
+    'core\app\Start-Codex-Local-Qwen36.ps1',
+    'core\app\Install-Desktop-Shortcuts.ps1',
+    'core\app\Codex.ico',
+    'core\app\README.md',
+    'core\app\AI-MAINTENANCE-GUIDE.md',
+    'core\app\EVOLVE-WITH-AI.md',
+    'core\templates\native-config.template.toml',
+    'core\templates\transfer-shared-config.template.toml',
+    'core\catalogs\native-models.json',
+    'core\catalogs\local-qwen36-models.json',
+    'references\deepseek\260909\README.md',
+    'references\deepseek\260909\native-config.example.toml'
 )
 
 $errors = New-Object System.Collections.Generic.List[string]
@@ -186,7 +163,7 @@ foreach ($jsonFile in @($packageFiles | Where-Object { $_.Extension -eq '.json' 
     }
 }
 
-$nativeCatalogPath = Join-Path $packageRoot 'payload\catalogs\native-models.json'
+$nativeCatalogPath = Join-Path $packageRoot 'core\catalogs\native-models.json'
 if (Test-Path -LiteralPath $nativeCatalogPath -PathType Leaf) {
     try {
         $nativeCatalog = Get-Content -Raw -LiteralPath $nativeCatalogPath |
@@ -223,12 +200,30 @@ if (Test-Path -LiteralPath $nativeCatalogPath -PathType Leaf) {
     }
 }
 
-$chooserPath = Join-Path $packageRoot 'payload\app\Start-Codex-Chooser.ps1'
+$localQwenCatalogPath = Join-Path $packageRoot 'core\catalogs\local-qwen36-models.json'
+if (Test-Path -LiteralPath $localQwenCatalogPath -PathType Leaf) {
+    try {
+        $localQwenCatalog = Get-Content -Raw -LiteralPath $localQwenCatalogPath |
+            ConvertFrom-Json
+        $localQwenSlugs = @(
+            $localQwenCatalog.models | ForEach-Object { [string]$_.slug }
+        )
+        if ($localQwenSlugs -notcontains 'qwen3.6-35b-a3b-coding') {
+            $errors.Add('Local Qwen3.6 catalog is missing its verified model slug.')
+        }
+    }
+    catch {
+        $errors.Add('Could not inspect the Local Qwen3.6 model catalog.')
+    }
+}
+
+$chooserPath = Join-Path $packageRoot 'core\app\Start-Codex-Chooser.ps1'
 if (Test-Path -LiteralPath $chooserPath -PathType Leaf) {
     $chooserText = [IO.File]::ReadAllText($chooserPath, [Text.Encoding]::UTF8)
     foreach ($marker in @(
         'DeepSeekButton',
         'TransferButton',
+        'LocalQwen36Button',
         'shared profile',
         'Width="700"'
     )) {
@@ -238,66 +233,17 @@ if (Test-Path -LiteralPath $chooserPath -PathType Leaf) {
     }
 }
 
-$buildInfoPath = Join-Path $packageRoot 'payload\app\build-info.json'
-$bridgeExePath = Join-Path $packageRoot 'payload\app\moonbridge.exe'
-$sourceArchives = @(
-    Get-ChildItem -LiteralPath (Join-Path $packageRoot 'third-party\source') `
-        -File `
-        -Filter '*.zip' `
-        -ErrorAction SilentlyContinue
-)
-if (
-    (Test-Path -LiteralPath $buildInfoPath -PathType Leaf) -and
-    (Test-Path -LiteralPath $bridgeExePath -PathType Leaf)
-) {
-    try {
-        $buildInfo = Get-Content -Raw -LiteralPath $buildInfoPath |
-            ConvertFrom-Json
-        $actualExeHash = (Get-Sha256Hex `
-            -Path $bridgeExePath).ToLowerInvariant()
-        if ($actualExeHash -ne [string]$buildInfo.moonbridge_exe_sha256) {
-            $errors.Add('moonbridge.exe does not match build-info.json.')
-        }
-        if ($sourceArchives.Count -ne 1) {
-            $errors.Add('Expected exactly one pinned Moon Bridge source archive.')
-        }
-        else {
-            $actualSourceHash = (Get-Sha256Hex `
-                -Path $sourceArchives[0].FullName).ToLowerInvariant()
-            if ($actualSourceHash -ne [string]$buildInfo.source_archive_sha256) {
-                $errors.Add('Moon Bridge source archive does not match build-info.json.')
-            }
-        }
-    }
-    catch {
-        $errors.Add('Could not verify Moon Bridge provenance hashes.')
-    }
-}
-
 $templateChecks = [ordered]@{
-    'payload\templates\bridge-config.template.yml' = @(
-        '__LOCAL_BRIDGE_TOKEN_JSON__',
-        '__DEEPSEEK_API_KEY_JSON__'
-    )
-    'payload\templates\bridge-codex-config.template.toml' = @(
-        '__BRIDGE_CATALOG_PATH_JSON__'
-    )
-    'payload\templates\native-config.template.toml' = @(
+    'core\templates\native-config.template.toml' = @(
         '__NATIVE_CATALOG_PATH_JSON__',
         '__DEEPSEEK_API_KEY_JSON__'
     )
-    'payload\templates\transfer-shared-config.template.toml' = @(
+    'core\templates\transfer-shared-config.template.toml' = @(
         '__TRANSFER_MODEL_JSON__',
         '__TRANSFER_REASONING_JSON__'
     )
-    'payload\templates\transfer-pro-config.template.toml' = @(
-        '__TRANSFER_PRO_MODEL_JSON__',
-        '__TRANSFER_PRO_REASONING_JSON__'
-    )
-    'payload\templates\transfer-legacy-config.template.toml' = @(
-        '__TRANSFER_LEGACY_MODEL_JSON__',
-        '__TRANSFER_LEGACY_REASONING_JSON__',
-        '__TRANSFER_LEGACY_ACTOR_JSON__'
+    'core\templates\local-qwen36-config.template.toml' = @(
+        '__LOCAL_QWEN_CATALOG_PATH_JSON__'
     )
 }
 foreach ($entry in $templateChecks.GetEnumerator()) {
@@ -338,6 +284,5 @@ if (-not $Quiet) {
         $packageFiles | Where-Object { $_.Extension -eq '.json' }
     ).Count
     SecretPatternMatches = $secretMatches
-    MoonBridgeBinaryVerified = $true
-    MoonBridgeSourceVerified = $true
+    CurrentLayout = 'core-docs-references'
 }

@@ -14,11 +14,7 @@ $ErrorActionPreference = 'Stop'
 
 $installRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $settingsPath = Join-Path $installRoot 'launcher.settings.json'
-$historyRepair = Join-Path $installRoot (
-    'maintenance\history\Repair-DeepSeek-History.ps1'
-)
 $logDirectory = Join-Path $installRoot 'logs'
-$pidPath = Join-Path $installRoot 'bridge.pid'
 
 $launcherSettings = $null
 if (Test-Path -LiteralPath $settingsPath -PathType Leaf) {
@@ -105,25 +101,6 @@ function Resolve-CodexDesktopExecutable {
     }
 
     throw 'The installed Codex desktop executable could not be located.'
-}
-
-function Stop-LegacyMoonBridgeIfRecorded {
-    if (-not (Test-Path -LiteralPath $pidPath -PathType Leaf)) {
-        return
-    }
-
-    $savedPid = 0
-    if ([int]::TryParse(
-        (Get-Content -Raw -LiteralPath $pidPath).Trim(),
-        [ref]$savedPid
-    )) {
-        $savedProcess = Get-Process -Id $savedPid `
-            -ErrorAction SilentlyContinue
-        if ($savedProcess -and $savedProcess.ProcessName -eq 'moonbridge') {
-            Stop-Process -Id $savedPid -Force -ErrorAction SilentlyContinue
-        }
-    }
-    Remove-Item -LiteralPath $pidPath -Force -ErrorAction SilentlyContinue
 }
 
 function Get-DeepSeekProfileState {
@@ -260,42 +237,10 @@ function Set-SelectedModel {
     }
 }
 
-function Invoke-HistoryRepair {
-    if (-not (Test-Path -LiteralPath $historyRepair -PathType Leaf)) {
-        return
-    }
-    try {
-        & $historyRepair -CodexHome $codexHome -Quiet
-    }
-    catch {
-        New-Item -ItemType Directory -Force -Path $logDirectory | Out-Null
-        $safeMessage = [regex]::Replace(
-            [string]$_.Exception.Message,
-            '(?i)(Bearer\s+)[A-Za-z0-9._~+/=-]{8,}',
-            '$1<redacted>'
-        )
-        $safeMessage = [regex]::Replace(
-            $safeMessage,
-            '[\r\n]+',
-            ' '
-        ).Trim()
-        if ($safeMessage.Length -gt 1000) {
-            $safeMessage = $safeMessage.Substring(0, 1000) + '...'
-        }
-        [IO.File]::AppendAllText(
-            (Join-Path $logDirectory 'history-repair-native.log'),
-            ('{0:u} History repair warning: {1}' -f (Get-Date), $safeMessage) +
-                [Environment]::NewLine,
-            (New-Object System.Text.UTF8Encoding($false))
-        )
-    }
-}
-
 try {
     $requiredPaths = @(
         $codexConfigPath,
-        $modelCatalogPath,
-        $historyRepair
+        $modelCatalogPath
     )
     foreach ($requiredPath in $requiredPaths) {
         if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
@@ -330,9 +275,7 @@ try {
 
     New-Item -ItemType Directory -Force -Path $logDirectory | Out-Null
     New-Item -ItemType Directory -Force -Path $electronData | Out-Null
-    Stop-LegacyMoonBridgeIfRecorded
     Set-SelectedModel -SelectedModel $Model
-    Invoke-HistoryRepair
 
     $appExe = Resolve-CodexDesktopExecutable
     $startInfo = New-Object System.Diagnostics.ProcessStartInfo
@@ -346,7 +289,6 @@ try {
         throw 'Codex did not start.'
     }
     $appProcess.WaitForExit()
-    Invoke-HistoryRepair
 }
 catch {
     Show-CodexMessage $_.Exception.Message 'Codex - DeepSeek launch error'

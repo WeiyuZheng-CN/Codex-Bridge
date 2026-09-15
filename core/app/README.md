@@ -1,9 +1,11 @@
 # Installed Codex Vibe Software
 
-Open the `Codex` desktop shortcut, or run `Start-Codex-Chooser.cmd`, and use
-the graphical launcher with ChatGPT, DeepSeek, and OpenAI Transfer entries.
+Open the `Codex` desktop shortcut and use the graphical launcher with ChatGPT,
+DeepSeek, OpenAI Transfer, and Local Qwen3.6 entries. For diagnostics, run
+`Start-Codex-Chooser.ps1 -ValidateOnly` with Windows PowerShell 5.1.
 
-The top-level choices are ChatGPT, DeepSeek, and OpenAI Transfer. The single
+The top-level choices are ChatGPT, DeepSeek, OpenAI Transfer, and Local Qwen3.6.
+The single
 DeepSeek entry uses the official native profile. After Codex opens, its model
 picker contains V4 Pro, V4 Flash, and V4 Flash Vision. OpenAI Transfer uses one
 shared `auth.json` profile; switch between `OpenAI-transfer-Pro` and
@@ -21,6 +23,21 @@ If the current **使用密匙** popup returns API Key Mode or an extra actor
 header, an AI agent may retain the old compatibility profile and adapt it
 locally. Current station references are documented at:
 <https://docs.ai-pixel.online/docs/api>.
+
+Local Qwen3.6 starts the verified upstream llama.cpp b10964 CUDA runtime on
+`127.0.0.1:61991` when its card is selected. It uses an isolated Codex profile
+with `requires_openai_auth = false`; the normal `%USERPROFILE%\.codex` profile
+is not changed. See `docs/LOCAL-QWEN36-INTEGRATION.md` in the source package
+for the model digest, 262K context/GPU-q8 settings, rollback path, and
+troubleshooting checks.
+
+The current local profile uses the full 262K context, GPU `q8_0` KV cache,
+Flash Attention, and low reasoning with a 512-token budget. It is the maximum
+context configuration tested on this RTX 5060 Laptop GPU.
+
+The detailed Local Qwen3.6 AI maintenance guide is installed in
+docs\LOCAL-QWEN36-AI-MAINTENANCE-GUIDEBOOK.md. Read it for exact hashes,
+resource tuning, troubleshooting, upgrade, rollback, and acceptance checks.
 
 For maintenance, recovery, or a Codex update, read `AI-MAINTENANCE-GUIDE.md`
 first. Never share or commit generated `auth.json`, `config.yml`, profile

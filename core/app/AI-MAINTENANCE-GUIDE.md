@@ -12,18 +12,20 @@ Codex desktop shortcut
      -> ChatGPT profile
      -> DeepSeek -> native DeepSeek Responses API
           -> Codex model picker: V4 Pro / V4 Flash / V4 Flash Vision
-     -> OpenAI Transfer -> shared auth.json profile -> station API
-          -> Pro/Legacy selected in the station web console
+      -> OpenAI Transfer -> shared auth.json profile -> station API
+           -> Pro/Legacy selected in the station web console
+     -> Local Qwen3.6 -> loopback llama.cpp CUDA server -> isolated profile
 ```
 
 The main chooser has one DeepSeek card. The native DeepSeek profile exposes
 `deepseek-v4-pro`, `deepseek-v4-flash`, and
 `deepseek-v4-flash-vision-exp` through the same provider entrance. The vision
 model accepts JPEG, PNG, GIF, and WebP images as Responses API `input_image`
-parts. The former Moon Bridge route remains in the application only as a
-historical compatibility resource.
+parts. The former Moon Bridge route is not included in the current application.
+Its old source and binary are kept outside the repository package as a local
+archive when recovery is needed.
 
-The current public reference is `configuration\260909`. An old
+The current public reference is `references\deepseek\260909`. An old
 `NativeFlash` installer argument may still appear in a user's history, but it
 maps to this same native DeepSeek entry; it must not create a second card or a
 second model-selection dialog.
@@ -31,8 +33,22 @@ second model-selection dialog.
 Provider profiles and Electron data are isolated. ChatGPT uses the normal
 Codex profile as-is. The shared Transfer profile uses one station key in
 `auth.json`; the web console chooses Pro or Legacy routing for that key. The
-historical 260902 API Key Mode profile may remain under `legacy-transfer` for
-rollback when a station still requires an environment key or actor header.
+historical 260902 API Key Mode profile may remain in the user's existing
+profile for rollback when a station still requires an environment key or actor
+header.
+
+Local Qwen3.6 is credential-free and is kept outside the portable app directory.
+Its stable runtime/model root is
+`%USERPROFILE%\Documents\Codex\local-qwen36`; its isolated Codex profile is
+`%USERPROFILE%\Documents\Codex\local-qwen36-codex`. The local profile uses
+`http://127.0.0.1:61991/v1`, `wire_api = "responses"`, and
+`requires_openai_auth = false`. Read `docs\LOCAL-QWEN36-INTEGRATION.md` in the
+source package for the digest, GPU flags, and rollback procedure.
+
+The current tuned defaults are `262144` context tokens, CUDA `q8_0` KV cache,
+Flash Attention enabled, and low reasoning with a 512-token budget. The full
+context was tested on the RTX 5060 Laptop GPU; it uses most of the available
+VRAM and should not be combined with another heavy GPU workload.
 
 For current station behavior, read:
 
@@ -44,6 +60,15 @@ For current station behavior, read:
 
 When a key or generated configuration is needed, have the user open
 <https://ai-pixel.online/keys> and click **使用密匙**. Keep the result private.
+
+Legacy files are intentionally not copied into the installed core. If an old
+Moon Bridge history needs repair, use the archived files from the source
+package's legacy archive or an older Git release, without copying user state
+into this package.
+
+The detailed Local Qwen3.6 maintenance handoff is installed under
+docs\LOCAL-QWEN36-AI-MAINTENANCE-GUIDEBOOK.md. Read it before changing the
+model, runtime, context, memory settings, or local profile.
 
 ## Agent maintenance rule
 

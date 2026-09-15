@@ -13,12 +13,9 @@ $installRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $chatGPTScript = Join-Path $installRoot 'Start-Codex-ChatGPT.ps1'
 $deepSeekScript = Join-Path $installRoot 'Start-Codex-DeepSeek.ps1'
 $openaiTransferScript = Join-Path $installRoot 'Start-Codex-OpenAI-Transfer.ps1'
+$localQwenScript = Join-Path $installRoot 'Start-Codex-Local-Qwen36.ps1'
 $settingsPath = Join-Path $installRoot 'launcher.settings.json'
-$historyDirectory = Join-Path $installRoot 'maintenance\history'
-$historyRepair = Join-Path $historyDirectory 'Repair-DeepSeek-History.ps1'
-$metadataRepair = Join-Path $historyDirectory 'Repair-DeepSeek-HistoryMetadata.py'
 $iconPath = Join-Path $installRoot 'Codex.ico'
-$pidPath = Join-Path $installRoot 'bridge.pid'
 $logDirectory = Join-Path $installRoot 'logs'
 $errorLogPath = Join-Path $logDirectory 'chooser-error.log'
 $dispatchLogPath = Join-Path $logDirectory 'chooser-dispatch.log'
@@ -34,6 +31,7 @@ function Get-ModeAvailability {
         ChatGPT = $true
         DeepSeek = $true
         Transfer = $true
+        LocalQwen36 = $true
     }
     if (-not (Test-Path -LiteralPath $settingsPath -PathType Leaf)) {
         return $available
@@ -58,6 +56,9 @@ function Get-ModeAvailability {
                     # one as the single shared entrance during migration.
                     'TransferPro' { $available.Transfer = $true }
                     'TransferLegacy' { $available.Transfer = $true }
+                    'LocalQwen36' { $available.LocalQwen36 = $true }
+                    'LocalQwen' { $available.LocalQwen36 = $true }
+                    'Qwen36' { $available.LocalQwen36 = $true }
                 }
             }
         }
@@ -224,26 +225,6 @@ function Start-ProviderScriptOutOfProcess {
     }
 }
 
-function Test-DeepSeekBridgeProcess {
-    if (-not (Test-Path -LiteralPath $pidPath)) {
-        return $false
-    }
-
-    $savedPid = 0
-    if (-not [int]::TryParse(
-        (Get-Content -Raw -LiteralPath $pidPath).Trim(),
-        [ref]$savedPid
-    )) {
-        return $false
-    }
-
-    $savedProcess = Get-Process -Id $savedPid -ErrorAction SilentlyContinue
-    return [bool](
-        $savedProcess -and
-        $savedProcess.ProcessName -eq 'moonbridge'
-    )
-}
-
 function Show-AlreadyRunningMessage {
     [System.Windows.MessageBox]::Show(
         "Codex is already running.`r`n`r`nQuit Codex completely, then open the Codex shortcut again to choose a mode.",
@@ -289,8 +270,7 @@ foreach ($requiredPath in @(
     $chatGPTScript,
     $deepSeekScript,
     $openaiTransferScript,
-    $historyRepair,
-    $metadataRepair,
+    $localQwenScript,
     $iconPath,
     $powerShellExe
 )) {
@@ -319,37 +299,16 @@ if ($ValidateOnly) {
         $deepSeek = New-UnavailableValidationResult -Mode 'DeepSeek'
     }
     if ($installed -and $availability.Transfer) {
-        # Shared profiles ignore the compatibility mode value. For an older
-        # split-profile installation, choose the profile that was enabled if
-        # only the legacy flag was recorded.
-        $validationTransferMode = 'OpenAI-transfer-Pro'
-        try {
-            $settings = Get-Content -Raw -LiteralPath $settingsPath |
-                ConvertFrom-Json
-            $hasSharedRoot = [bool](
-                $settings.PSObject.Properties['transfer_shared_profile_root'] -and
-                -not [string]::IsNullOrWhiteSpace(
-                    [string]$settings.transfer_shared_profile_root
-                )
-            )
-            if (
-                -not $hasSharedRoot -and
-                $settings.PSObject.Properties['enabled_modes'] -and
-                @($settings.enabled_modes | ForEach-Object { [string]$_ }) -contains 'TransferLegacy' -and
-                @($settings.enabled_modes | ForEach-Object { [string]$_ }) -notcontains 'TransferPro'
-            ) {
-                $validationTransferMode = 'OpenAI-transfer'
-            }
-        }
-        catch {
-            # The launcher performs the authoritative profile validation.
-        }
-        $transfer = & $openaiTransferScript `
-            -TransferMode $validationTransferMode `
-            -ValidateOnly
+        $transfer = & $openaiTransferScript -ValidateOnly
     }
     else {
         $transfer = New-UnavailableValidationResult -Mode 'Transfer'
+    }
+    if ($installed -and $availability.LocalQwen36) {
+        $localQwen36 = & $localQwenScript -ValidateOnly
+    }
+    else {
+        $localQwen36 = New-UnavailableValidationResult -Mode 'LocalQwen36'
     }
 
     [ordered]@{
@@ -359,17 +318,15 @@ if ($ValidateOnly) {
         Choices = @(
             'ChatGPT',
             'DeepSeek (V4 Pro + V4 Flash + Vision)',
-            'OpenAI Transfer'
+            'OpenAI Transfer',
+            'Local Qwen3.6'
         )
-        TransferModes = @('OpenAI-transfer-Pro / OpenAI-transfer (server-side switch)')
+        TransferMode = 'shared auth.json; Pro/Legacy selected on the station website'
         ChatGPTValidation = $chatGPT
         DeepSeekValidation = $deepSeek
         TransferValidation = $transfer
-        # Retain field names used by older maintenance scripts.
-        TransferProValidation = $transfer
-        TransferLegacyValidation = $transfer
+        LocalQwen36Validation = $localQwen36
         Icon = $iconPath
-        BridgeRunning = (Test-DeepSeekBridgeProcess)
     }
     return
 }
@@ -539,13 +496,24 @@ try {
                 </Grid>
             </Button>
 
-            <Button x:Name="TransferButton" Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,6,0,0" Style="{StaticResource ModeButtonStyle}" AutomationProperties.Name="OpenAI Transfer">
+            <Button x:Name="TransferButton" Grid.Row="2" Grid.Column="0" Margin="0,6,6,0" Style="{StaticResource ModeButtonStyle}" AutomationProperties.Name="OpenAI Transfer">
                 <Grid Margin="16,0,12,0">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="38"/><ColumnDefinition Width="*"/><ColumnDefinition Width="18"/></Grid.ColumnDefinitions>
                     <Border Width="38" Height="38" CornerRadius="12" Background="#EAF3F1" VerticalAlignment="Center">
                         <TextBlock Text="T" Foreground="#2A7E71" FontSize="12" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                     <TextBlock Grid.Column="1" Text="OpenAI Transfer" Margin="16,0,0,0" VerticalAlignment="Center" Foreground="#2E2D29" FontSize="13" FontWeight="SemiBold"/>
+                    <TextBlock Grid.Column="2" Text="&#x203A;" VerticalAlignment="Center" HorizontalAlignment="Right" Foreground="#9F9B92" FontSize="24" FontWeight="Light"/>
+                </Grid>
+            </Button>
+
+            <Button x:Name="LocalQwen36Button" Grid.Row="2" Grid.Column="1" Margin="6,6,0,0" Style="{StaticResource ModeButtonStyle}" AutomationProperties.Name="Local Qwen3.6">
+                <Grid Margin="16,0,12,0">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="38"/><ColumnDefinition Width="*"/><ColumnDefinition Width="18"/></Grid.ColumnDefinitions>
+                    <Border Width="38" Height="38" CornerRadius="12" Background="#EEEAF7" VerticalAlignment="Center">
+                        <TextBlock Text="Q" Foreground="#7053A6" FontSize="12" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <TextBlock Grid.Column="1" Text="Local Qwen3.6" Margin="16,0,0,0" VerticalAlignment="Center" Foreground="#2E2D29" FontSize="13" FontWeight="SemiBold"/>
                     <TextBlock Grid.Column="2" Text="&#x203A;" VerticalAlignment="Center" HorizontalAlignment="Right" Foreground="#9F9B92" FontSize="24" FontWeight="Light"/>
                 </Grid>
             </Button>
@@ -571,11 +539,13 @@ try {
     $chatGPTButton = $window.FindName('ChatGPTButton')
     $deepSeekButton = $window.FindName('DeepSeekButton')
     $transferButton = $window.FindName('TransferButton')
+    $localQwen36Button = $window.FindName('LocalQwen36Button')
     $cancelButton = $window.FindName('CancelButton')
     $availability = Get-ModeAvailability
     $chatGPTButton.IsEnabled = [bool]$availability.ChatGPT
     $deepSeekButton.IsEnabled = [bool]$availability.DeepSeek
     $transferButton.IsEnabled = [bool]$availability.Transfer
+    $localQwen36Button.IsEnabled = [bool]$availability.LocalQwen36
 
     # A hashtable carries the selection across the WPF event-handler closure
     # boundary. Mutating a script-scope hashtable is reliable; rebinding a plain
@@ -598,6 +568,11 @@ try {
         Write-ChooserDispatchLog 'Button clicked: openai-transfer shared profile'
         $window.DialogResult = $true
     }.GetNewClosure())
+    $localQwen36Button.Add_Click({
+        $script:chooserState.Provider = 'local-qwen36'
+        Write-ChooserDispatchLog 'Button clicked: local Qwen3.6 profile'
+        $window.DialogResult = $true
+    }.GetNewClosure())
 
     $window.Add_PreviewKeyDown({
         param($sender, $eventArgs)
@@ -606,17 +581,19 @@ try {
         switch ($eventArgs.Key) {
             ([System.Windows.Input.Key]::Left) {
                 if ($deepSeekButton.IsKeyboardFocusWithin) { $target = $chatGPTButton }
+                elseif ($localQwen36Button.IsKeyboardFocusWithin) { $target = $transferButton }
             }
             ([System.Windows.Input.Key]::Right) {
                 if ($chatGPTButton.IsKeyboardFocusWithin) { $target = $deepSeekButton }
+                elseif ($transferButton.IsKeyboardFocusWithin) { $target = $localQwen36Button }
             }
             ([System.Windows.Input.Key]::Up) {
                 if ($transferButton.IsKeyboardFocusWithin) { $target = $chatGPTButton }
+                elseif ($localQwen36Button.IsKeyboardFocusWithin) { $target = $deepSeekButton }
             }
             ([System.Windows.Input.Key]::Down) {
-                if ($chatGPTButton.IsKeyboardFocusWithin -or $deepSeekButton.IsKeyboardFocusWithin) {
-                    $target = $transferButton
-                }
+                if ($chatGPTButton.IsKeyboardFocusWithin) { $target = $transferButton }
+                elseif ($deepSeekButton.IsKeyboardFocusWithin) { $target = $localQwen36Button }
             }
         }
 
@@ -630,7 +607,8 @@ try {
         foreach ($button in @(
             $chatGPTButton,
             $deepSeekButton,
-            $transferButton
+            $transferButton,
+            $localQwen36Button
         )) {
             if ($button.IsEnabled) {
                 $button.Focus() | Out-Null
@@ -719,6 +697,10 @@ try {
         'openai-transfer' {
             Write-ChooserDispatchLog 'Dispatching OpenAI Transfer shared profile'
             Start-ProviderScriptOutOfProcess -ScriptPath $openaiTransferScript
+        }
+        'local-qwen36' {
+            Write-ChooserDispatchLog 'Dispatching Local Qwen3.6 profile'
+            Start-ProviderScriptOutOfProcess -ScriptPath $localQwenScript
         }
         default {
             throw "Unknown Codex provider choice: $effectiveProvider"

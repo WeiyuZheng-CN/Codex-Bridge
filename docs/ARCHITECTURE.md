@@ -7,7 +7,7 @@ launcher core with enough explanation for an AI agent to install and evolve it
 on computers the original author has never seen. It intentionally does not
 encode every environment or future provider revision.
 
-The three-entry WPF chooser remains the human-facing launcher. The AI
+The four-entry WPF chooser remains the human-facing launcher. The AI
 conversation is the installer, repair assistant, and development interface.
 
 ## Architecture
@@ -21,6 +21,7 @@ Start-Codex-Chooser.ps1
     Codex model picker -> V4 Pro / V4 Flash / V4 Flash Vision
   OpenAI Transfer     -> one shared auth.json profile -> station Responses API
     Pro / Legacy       -> selected by the transfer-station web console
+  Local Qwen3.6       -> local llama.cpp CUDA server -> isolated profile
 ```
 
 `launcher.settings.json`, generated on the target computer, records the Codex
@@ -35,18 +36,32 @@ Default destinations are:
 <Documents>\Codex\deepseek-native-test\         native DeepSeek profile
 <Documents>\Codex\ai-pixel-relay\               shared Transfer profile
 <Documents>\Codex\ai-pixel-relay\legacy-transfer\  old compatibility profile, if retained
+<Documents>\Codex\local-qwen36\                 verified model + CUDA runtime
+<Documents>\Codex\local-qwen36-codex\          local Codex profile
 <Documents>\Codex\Codex-Launcher                friendly app link
 ```
 
 The agent may choose different safe paths. The normal `%USERPROFILE%\.codex`
 profile is used only by the ChatGPT launcher and is not rewritten.
 
+Local Qwen3.6 is credential-free. Its isolated profile uses the local
+Responses API at `http://127.0.0.1:61991/v1` with
+`requires_openai_auth = false`. The Q4_K_M model is about 20.2 GiB, so the
+verified model/runtime root is kept outside the portable launcher package.
+The current model digest is
+`D372DE8E934898A59E6CCFABC3368474711384D8F1FD4D22D87A3F0A45400CDC`.
+The tested runtime uses the full `262144`-token context, CUDA `q8_0` KV cache,
+and Flash Attention on; the MoE experts remain in system RAM.
+The model weights and CUDA runtime are external assets and are deliberately
+not bundled in this public source package. The target machine must stage them
+outside the repository before selecting Local Qwen3.6.
+
 ## Mode-aware installation
 
 The installer accepts:
 
 ```text
--Modes ChatGPT,DeepSeek,Transfer
+-Modes ChatGPT,DeepSeek,Transfer,LocalQwen36
 ```
 
 Use `-Modes all` for everything. If `-Modes` is omitted in non-interactive
@@ -83,10 +98,10 @@ Other useful parameters are:
 | `-CodexExecutablePath` | Full path to `ChatGPT.exe` when discovery fails. |
 | `-InstallRoot` / `-ProfilesRoot` | Machine-specific destinations. |
 | `-NoDesktopShortcut` / `-NoFriendlyLink` | Skip optional shell integration. |
-| `-TransferProModel` / `-TransferModel` | Current station model name for the shared profile. The old Pro name remains accepted. |
-| `-TransferProReasoningEffort` | Current reasoning default for the shared profile. |
-| `-TransferProKeyFile` / `-TransferLegacyKeyFile` | Compatibility aliases for `-TransferKeyFile`; use one key file. |
-| `-TransferLegacyWithoutActor` | Retained for old scripts; the shared auth.json profile does not add an actor header. |
+| `-TransferModel` | Current station model name for the shared profile. |
+| `-TransferReasoningEffort` | Current reasoning default for the shared profile. |
+| `-LocalQwenRoot` / `-LocalQwenProfileRoot` | Stable local model/runtime and isolated profile destinations. |
+| `-TransferKeyFile` | The single shared Transfer key file. Old Pro/Legacy names remain aliases. |
 | `-ValidateOnly` | Inspect package, paths, selected modes, and supplied key files without installing. |
 | `-SkipPackageValidation` | Continue after an agent has inspected a warning caused by a deliberate local adaptation. |
 
@@ -116,11 +131,12 @@ and one model catalog containing:
 There is no second DeepSeek dialog. The user starts DeepSeek once and selects
 the desired model in Codex. The vision model accepts JPEG, PNG, GIF, and WebP
 images through Responses API `input_image` parts. See
-`configuration\260909` and
+`references\deepseek\260909` and
 <https://api-docs.deepseek.com/guides/vision>.
 
-Moon Bridge and its source remain in the package as historical compatibility
-resources, but the primary DeepSeek launcher does not start the bridge.
+Moon Bridge and its source are not part of the active package. Historical
+files are retained under archive/legacy-moon-bridge; older Git releases and
+that archive remain available for one-time recovery work.
 
 ## Current Transfer baseline
 
@@ -132,7 +148,8 @@ The official station documentation is the source of truth:
 - Client configuration: <https://docs.ai-pixel.online/docs/normal-client-setup>
 - Account-mode routing: <https://docs.ai-pixel.online/docs/normal-account-mode>
 
-The sanitized historical references are stored under `configuration\260902`.
+Historical Transfer compatibility is summarized in
+`docs\LEGACY-COMPATIBILITY.md`.
 For the current key, direct the user to <https://ai-pixel.online/keys> and ask
 them to click **使用密匙**. The resulting configuration or credentials must
 remain in a private file outside the repository, or be entered through the
@@ -171,7 +188,7 @@ model name or the 260902 date alone.
 ## Validation philosophy
 
 `Validate-Package.ps1` checks missing core files, syntax, JSON, accidental
-runtime data, obvious credential-shaped values, and Moon Bridge provenance.
+runtime data, and obvious credential-shaped values.
 It is a fast diagnostic, not a trust ceremony. After inspecting a warning that
 was caused by an intentional local adaptation, the agent can rerun the
 installer with `-SkipPackageValidation` and rely on the focused installed-path
@@ -192,8 +209,8 @@ when the user wants an attended network test.
 
 An agent may modify:
 
-- templates under `payload\templates` for a new provider revision;
-- model catalogs under `payload\catalogs`;
+- templates under `core\templates` for a new provider revision;
+- model catalogs under `core\catalogs`;
 - provider launchers for changed environment handling;
 - the WPF chooser while preserving a concise, non-technical experience;
 - the installer for a target computer's path, permission, or app-discovery

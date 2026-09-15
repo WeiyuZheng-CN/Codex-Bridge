@@ -8,7 +8,7 @@ Please evolve this Codex Vibe Software for the following need:
 
 <describe what I want in ordinary language>
 
-First read README.md, AGENTS.md, AI-INSTALLATION-GUIDE.md, the installed
+First read README.md, AGENTS.md, docs/ARCHITECTURE.md, the installed
 AI-MAINTENANCE-GUIDE.md if present, launcher.settings.json if present, and
 LOCAL-CHANGES.md if present. Inspect the current behavior and preserve useful
 local changes. You may edit the local code and configuration needed for this
@@ -31,4 +31,3 @@ do not upload or publish it until I explicitly approve.
 The useful unit of sharing is not another person's whole configured computer.
 It is a small source change, template, prompt improvement, or documented
 compatibility rule that another agent can adapt to its own user.
-

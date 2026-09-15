@@ -29,8 +29,8 @@ images are supplied as `input_image` content parts. The official guide also
 documents base64 data URLs, public image URLs, and Files API `file_id` inputs.
 
 When installing, the agent should use the native profile and let the user
-choose the model inside Codex. Moon Bridge is retained only as a historical
-compatibility resource.
+choose the model inside Codex. Moon Bridge is not part of the current core;
+legacy recovery information is in `docs/LEGACY-COMPATIBILITY.md`.
 
 For the current key, ask the user to visit
 <https://ai-pixel.online/keys> and click **使用密匙**. Keep the resulting key

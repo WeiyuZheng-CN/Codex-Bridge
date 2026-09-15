@@ -7,7 +7,6 @@ Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
 $installRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$pidPath = Join-Path $installRoot 'bridge.pid'
 $settingsPath = Join-Path $installRoot 'launcher.settings.json'
 
 function Show-CodexMessage {
@@ -73,7 +72,6 @@ try {
             AppExecutable = $appExe
             CodexHome = (Join-Path $env:USERPROFILE '.codex')
             ElectronData = (Join-Path $env:LOCALAPPDATA 'OpenAI\Codex')
-            BridgePidFile = $pidPath
         }
         return
     }
@@ -81,17 +79,6 @@ try {
     if (Get-Process -Name ChatGPT -ErrorAction SilentlyContinue) {
         Show-CodexMessage 'Codex is already open. Quit it completely before switching modes.'
         exit 2
-    }
-
-    if (Test-Path -LiteralPath $pidPath) {
-        $savedPid = 0
-        if ([int]::TryParse((Get-Content -Raw -LiteralPath $pidPath).Trim(), [ref]$savedPid)) {
-            $savedProcess = Get-Process -Id $savedPid -ErrorAction SilentlyContinue
-            if ($savedProcess -and $savedProcess.ProcessName -eq 'moonbridge') {
-                Stop-Process -Id $savedPid -Force -ErrorAction SilentlyContinue
-            }
-        }
-        Remove-Item -LiteralPath $pidPath -Force -ErrorAction SilentlyContinue
     }
 
     $startInfo = New-Object System.Diagnostics.ProcessStartInfo

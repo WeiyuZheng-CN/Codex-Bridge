@@ -1,0 +1,20 @@
+model = "qwen3.6-35b-a3b-coding"
+model_provider = "local_qwen36"
+model_reasoning_effort = "low"
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+model_context_window = 262144
+model_catalog_json = __LOCAL_QWEN_CATALOG_PATH_JSON__
+
+[features]
+apps = false
+plugins = false
+remote_plugin = false
+plugin_sharing = false
+js_repl = false
+
+[model_providers.local_qwen36]
+name = "Local Qwen3.6"
+base_url = "http://127.0.0.1:61991/v1"
+wire_api = "responses"
+requires_openai_auth = false

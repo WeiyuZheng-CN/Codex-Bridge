@@ -6,7 +6,7 @@ the package author's machine.
 
 ## Working style
 
-1. Read `START-HERE-FOR-AI.md` and `AI-INSTALLATION-GUIDE.md` completely.
+1. Read `START-HERE-FOR-AI.md` and `docs/ARCHITECTURE.md` completely.
 2. Inspect first, then act. Do reversible, in-scope work without repeatedly
    asking for permission.
 3. Ask for the modes the user wants. Do not collect credentials for modes they
@@ -25,6 +25,7 @@ the package author's machine.
 | `ChatGPT` | ChatGPT | Existing Codex login; no new key |
 | `DeepSeek` | V4 Pro, V4 Flash, or V4 Flash Vision; select inside Codex | DeepSeek API key |
 | `Transfer` | OpenAI Transfer; switch Pro/Legacy at the station website | One current station key |
+| `LocalQwen36` | Local Qwen3.6 35B-A3B Q4_K_M through llama.cpp CUDA | Verified local runtime; no key |
 
 `ChatGPT` is included automatically. One DeepSeek key serves the native profile
 and its Pro, Flash, and Flash Vision model choices. The current station's
@@ -32,15 +33,23 @@ and its Pro, Flash, and Flash Vision model choices. The current station's
 the web console performs the server-side switch for the same key. The old
 `TransferPro` and `TransferLegacy` names remain accepted as installer aliases.
 
+`LocalQwen36` is credential-free. It requires the separately staged
+`Documents\Codex\local-qwen36` runtime/model root and creates the isolated
+`Documents\Codex\local-qwen36-codex` profile. It never rewrites the normal
+`%USERPROFILE%\.codex` profile.
+The current tested defaults are a 262144-token context, CUDA q8 KV cache,
+Flash Attention, and low reasoning with a 512-token budget.
+
 Prefer private one-line files outside the extracted package. Pass file paths
 to the installer; never read or print their contents. If files do not exist,
 run the installer visibly so the user can type into its hidden prompts.
 
 For current Transfer station information, direct the user to
 <https://ai-pixel.online/keys> and ask them to click **使用密匙**. Use the
-official references below and the sanitized references under
-`configuration/260902` to understand the expected shapes. Keep the page output
-private and never request it in chat.
+official references below and `references/deepseek/260909` for the current
+DeepSeek shape. Historical Transfer compatibility is summarized in
+`docs/LEGACY-COMPATIBILITY.md`; it is not part of the current package. Keep
+the page output private and never request it in chat.
 
 Official references:
 
@@ -72,12 +81,9 @@ Then install the requested modes:
 
 Use Windows PowerShell 5.1. Supply `-CodexExecutablePath` when automatic
 detection cannot see the installed `ChatGPT.exe`. `-Modes all` requests the
-complete setup. `-TransferProKeyFile` and `-TransferLegacyKeyFile` are retained
-as compatibility aliases for the single `-TransferKeyFile`; do not supply
-different key files for the two web-side modes. `-TransferLegacyWithoutActor`
-is retained only for old API Key Mode profiles. `-SkipPackageValidation` is
-for an inspected, intentional local adaptation, not for ignoring an unknown
-failure.
+complete setup. Old Pro/Legacy key parameter names remain aliases for the
+single `-TransferKeyFile`. `-SkipPackageValidation` is for an inspected,
+intentional local adaptation, not for ignoring an unknown failure.
 
 ## Boundaries
 

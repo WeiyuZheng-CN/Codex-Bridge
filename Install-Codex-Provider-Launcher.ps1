@@ -2,27 +2,26 @@
 param(
     [string[]]$Modes = @(),
     [string]$DeepSeekKeyFile = '',
-    [Alias('OpenAITransferKeyFile')]
+    [Alias(
+        'OpenAITransferKeyFile',
+        'TransferProKeyFile',
+        'TransferLegacyKeyFile'
+    )]
     [string]$TransferKeyFile = '',
-    [string]$TransferProKeyFile = '',
-    [string]$TransferLegacyKeyFile = '',
-    [string]$TransferLegacyActorFile = '',
     [string]$CodexExecutablePath = '',
     [string]$InstallRoot = '',
     [string]$ProfilesRoot = '',
+    [string]$LocalQwenRoot = '',
+    [string]$LocalQwenProfileRoot = '',
     [string]$DesktopPath = '',
-    [Alias('TransferModel')]
+    [Alias('TransferProModel', 'TransferLegacyModel')]
     [ValidatePattern('^[A-Za-z0-9][A-Za-z0-9._-]*$')]
-    [string]$TransferProModel = 'gpt-5.6-luna',
-    [ValidatePattern('^[A-Za-z0-9][A-Za-z0-9._-]*$')]
-    [string]$TransferLegacyModel = 'gpt-5.6-terra',
+    [string]$TransferModel = 'gpt-5.6-luna',
+    [Alias('TransferProReasoningEffort', 'TransferLegacyReasoningEffort')]
     [ValidateSet('low', 'medium', 'high', 'xhigh', 'max', 'ultra')]
-    [string]$TransferProReasoningEffort = 'medium',
-    [ValidateSet('low', 'medium', 'high', 'xhigh', 'max', 'ultra')]
-    [string]$TransferLegacyReasoningEffort = 'medium',
+    [string]$TransferReasoningEffort = 'medium',
     [switch]$NoDesktopShortcut,
     [switch]$NoFriendlyLink,
-    [switch]$TransferLegacyWithoutActor,
     [switch]$SkipPackageValidation,
     [switch]$NonInteractive,
     [switch]$ValidateOnly
@@ -32,10 +31,10 @@ Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
 $packageRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$payloadRoot = Join-Path $packageRoot 'payload'
-$payloadApp = Join-Path $payloadRoot 'app'
-$templateRoot = Join-Path $payloadRoot 'templates'
-$catalogRoot = Join-Path $payloadRoot 'catalogs'
+$coreRoot = Join-Path $packageRoot 'core'
+$appRoot = Join-Path $coreRoot 'app'
+$templateRoot = Join-Path $coreRoot 'templates'
+$catalogRoot = Join-Path $coreRoot 'catalogs'
 $validatorPath = Join-Path $packageRoot 'Validate-Package.ps1'
 $packageInfoPath = Join-Path $packageRoot 'package-info.json'
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
@@ -52,7 +51,8 @@ function Resolve-InstallModes {
     $validModes = @(
         'ChatGPT',
         'DeepSeek',
-        'Transfer'
+        'Transfer',
+        'LocalQwen36'
     )
     $aliases = @{
         'chatgpt' = 'ChatGPT'
@@ -74,6 +74,10 @@ function Resolve-InstallModes {
         'openai-transfer-pro' = 'Transfer'
         'transferlegacy' = 'Transfer'
         'openai-transfer' = 'Transfer'
+        'localqwen36' = 'LocalQwen36'
+        'localqwen' = 'LocalQwen36'
+        'qwen36' = 'LocalQwen36'
+        'local' = 'LocalQwen36'
         'all' = 'all'
     }
 
@@ -119,8 +123,7 @@ function Resolve-InstallModes {
     if ($DeepSeekKeyFile) {
         $inferred.Add('DeepSeek')
     }
-    if ($TransferKeyFile -or $TransferProKeyFile -or
-        $TransferLegacyKeyFile -or $TransferLegacyActorFile) {
+    if ($TransferKeyFile) {
         $inferred.Add('Transfer')
     }
     if ($inferred.Count -gt 0) {
@@ -143,7 +146,7 @@ function Resolve-InstallModes {
     Write-Host ''
     Write-Host 'Choose the modes to install.' -ForegroundColor White
     Write-Host 'Press Enter for all modes, or type names separated by commas:'
-    Write-Host 'ChatGPT, DeepSeek, Transfer'
+    Write-Host 'ChatGPT, DeepSeek, Transfer, LocalQwen36'
     $answer = Read-Host 'Modes'
     if ([string]::IsNullOrWhiteSpace($answer)) {
         return $validModes
@@ -204,6 +207,29 @@ function Assert-SafeDirectoryTarget {
         throw "$Label cannot be the user profile root."
     }
     return $fullPath
+}
+
+function Assert-LocalQwenRuntime {
+    param(
+        [Parameter(Mandatory = $true)][string]$Root
+    )
+
+    $runtimePath = Join-Path $Root 'runtime\llama-server.exe'
+    $launcherPath = Join-Path $Root 'launcher\Start-Qwen36-GPU-Coding.ps1'
+    $modelPath = Join-Path $Root 'model\qwen3.6-35b-a3b-coding-q4_k_m.gguf'
+    foreach ($requiredPath in @($runtimePath, $launcherPath, $modelPath)) {
+        if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
+            throw "Local Qwen3.6 runtime file is missing: $requiredPath"
+        }
+    }
+    $expectedBytes = [int64]21718480960
+    $actualBytes = (Get-Item -LiteralPath $modelPath).Length
+    if ($actualBytes -ne $expectedBytes) {
+        throw (
+            "Local Qwen3.6 model size is $actualBytes bytes; " +
+            "expected $expectedBytes bytes."
+        )
+    }
 }
 
 function Resolve-CodexDesktopExecutable {
@@ -379,41 +405,6 @@ function Get-RequiredSecret {
     $value = ConvertFrom-SecureValue -SecureValue $secureValue
     Assert-SecretValue -Value $value -Label $Label
     return $value
-}
-
-function Resolve-TransferKeyPath {
-    $candidates = @(
-        [pscustomobject]@{ Name = 'TransferKeyFile'; Path = $TransferKeyFile },
-        [pscustomobject]@{ Name = 'TransferProKeyFile'; Path = $TransferProKeyFile },
-        [pscustomobject]@{ Name = 'TransferLegacyKeyFile'; Path = $TransferLegacyKeyFile }
-    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_.Path) }
-
-    if (@($candidates).Count -eq 0) {
-        return ''
-    }
-
-    $normalized = @{}
-    foreach ($candidate in $candidates) {
-        $fullPath = ConvertTo-NormalizedPath ([string]$candidate.Path)
-        if (-not (Test-Path -LiteralPath $fullPath -PathType Leaf)) {
-            throw "$($candidate.Name) was not found: $fullPath"
-        }
-        $key = $fullPath.ToLowerInvariant()
-        if (-not $normalized.ContainsKey($key)) {
-            $normalized[$key] = New-Object System.Collections.Generic.List[string]
-        }
-        $normalized[$key].Add([string]$candidate.Name)
-    }
-
-    if ($normalized.Count -gt 1) {
-        throw (
-            'Use one Transfer key file for the shared profile. Supplied files ' +
-            'resolve to different paths: ' +
-            (($normalized.Values | ForEach-Object { $_ -join ', ' }) -join '; ')
-        )
-    }
-    $firstKey = @($normalized.Keys)[0]
-    return [string]$firstKey
 }
 
 function ConvertTo-JsonString {
@@ -621,7 +612,7 @@ function Install-FriendlyJunction {
 }
 
 foreach ($requiredPath in @(
-    $payloadApp,
+    $appRoot,
     $templateRoot,
     $catalogRoot,
     $validatorPath,
@@ -658,6 +649,12 @@ if ([string]::IsNullOrWhiteSpace($ProfilesRoot)) {
     }
     $ProfilesRoot = Join-Path $documentsPath 'Codex'
 }
+if ([string]::IsNullOrWhiteSpace($LocalQwenRoot)) {
+    $LocalQwenRoot = Join-Path $ProfilesRoot 'local-qwen36'
+}
+if ([string]::IsNullOrWhiteSpace($LocalQwenProfileRoot)) {
+    $LocalQwenProfileRoot = Join-Path $ProfilesRoot 'local-qwen36-codex'
+}
 if ([string]::IsNullOrWhiteSpace($DesktopPath)) {
     $DesktopPath = [Environment]::GetFolderPath('Desktop')
 }
@@ -668,6 +665,12 @@ $InstallRoot = Assert-SafeDirectoryTarget `
 $ProfilesRoot = Assert-SafeDirectoryTarget `
     -Path $ProfilesRoot `
     -Label 'ProfilesRoot'
+$LocalQwenRoot = Assert-SafeDirectoryTarget `
+    -Path $LocalQwenRoot `
+    -Label 'LocalQwenRoot'
+$LocalQwenProfileRoot = Assert-SafeDirectoryTarget `
+    -Path $LocalQwenProfileRoot `
+    -Label 'LocalQwenProfileRoot'
 if (-not [string]::IsNullOrWhiteSpace($DesktopPath)) {
     $DesktopPath = Assert-SafeDirectoryTarget `
         -Path $DesktopPath `
@@ -683,12 +686,26 @@ if (
 if (Test-PathInside -Candidate $ProfilesRoot -Parent $packageRoot) {
     throw 'ProfilesRoot must be outside the extracted portable package.'
 }
+if (Test-PathInside -Candidate $LocalQwenRoot -Parent $packageRoot) {
+    throw 'LocalQwenRoot must be outside the extracted portable package.'
+}
+if (Test-PathInside -Candidate $LocalQwenProfileRoot -Parent $packageRoot) {
+    throw 'LocalQwenProfileRoot must be outside the extracted portable package.'
+}
 
 $transferRoot = Join-Path $ProfilesRoot 'ai-pixel-relay'
-$transferLegacyRoot = Join-Path $transferRoot 'legacy-transfer'
 $deepSeekRoot = Join-Path $ProfilesRoot 'deepseek-native-test'
 $deepSeekCatalogPath = Join-Path $deepSeekRoot 'codex-home\models.json'
+$localQwenConfigPath = Join-Path $LocalQwenProfileRoot 'codex-home\config.toml'
+$localQwenCatalogPath = Join-Path $LocalQwenProfileRoot 'codex-home\models.json'
 $friendlyLinkPath = Join-Path $ProfilesRoot 'Codex-Launcher'
+$needsDeepSeek = $selectedModes -contains 'DeepSeek'
+$needsTransfer = $selectedModes -contains 'Transfer'
+$needsLocalQwen = $selectedModes -contains 'LocalQwen36'
+
+if ($needsLocalQwen) {
+    Assert-LocalQwenRuntime -Root $LocalQwenRoot
+}
 
 if ($ValidateOnly) {
     if ($DeepSeekKeyFile) {
@@ -697,10 +714,9 @@ if ($ValidateOnly) {
             -Label 'DeepSeek API key'
         $checkedDeepSeek = $null
     }
-    $resolvedTransferKeyFile = Resolve-TransferKeyPath
-    if ($resolvedTransferKeyFile) {
+    if ($TransferKeyFile) {
         $checkedTransfer = Get-SecretFromFile `
-            -Path $resolvedTransferKeyFile `
+            -Path $TransferKeyFile `
             -Label 'OpenAI Transfer key'
         $checkedTransfer = $null
     }
@@ -712,37 +728,16 @@ if ($ValidateOnly) {
         InstallRoot = $InstallRoot
         ProfilesRoot = $ProfilesRoot
         DeepSeekProfileRoot = $deepSeekRoot
+        LocalQwenRoot = $LocalQwenRoot
+        LocalQwenProfileRoot = $LocalQwenProfileRoot
         CredentialFilesChecked = [bool](
             $DeepSeekKeyFile -or
-            $TransferKeyFile -or
-            $TransferProKeyFile -or
-            $TransferLegacyKeyFile -or
-            $TransferLegacyActorFile
+            $TransferKeyFile
         )
         WritesPerformed = $false
     }
     return
 }
-
-$targetPidPath = Join-Path $InstallRoot 'bridge.pid'
-if (Test-Path -LiteralPath $targetPidPath) {
-    $savedPid = 0
-    if ([int]::TryParse(
-        ([IO.File]::ReadAllText($targetPidPath).Trim()),
-        [ref]$savedPid
-    )) {
-        $savedProcess = Get-Process -Id $savedPid -ErrorAction SilentlyContinue
-        if ($savedProcess -and $savedProcess.ProcessName -eq 'moonbridge') {
-            throw (
-                'The existing local bridge is running. Quit provider-mode ' +
-                'Codex and run Stop-DeepSeek-Bridge.ps1 before upgrading.'
-            )
-        }
-    }
-}
-
-${needsDeepSeek} = $selectedModes -contains 'DeepSeek'
-${needsTransfer} = $selectedModes -contains 'Transfer'
 
 # Keep all secret-bearing variables initialized so a failed adaptation can
 # still cleanly release them in the finally block below.
@@ -754,7 +749,7 @@ $transferReasoningJson = ''
 $nativeConfig = ''
 $transferConfig = ''
 $transferAuth = ''
-$resolvedTransferKeyFile = ''
+$localQwenConfig = ''
 
 Write-InstallStep 'Reading only the credentials needed by the selected modes...'
 if (${needsDeepSeek}) {
@@ -764,15 +759,14 @@ if (${needsDeepSeek}) {
         -Prompt 'Enter the DeepSeek API key'
 }
 if (${needsTransfer}) {
-    $resolvedTransferKeyFile = Resolve-TransferKeyPath
     $transferKey = Get-RequiredSecret `
-        -Path $resolvedTransferKeyFile `
+        -Path $TransferKeyFile `
         -Label 'OpenAI Transfer key' `
         -Prompt 'Enter the OpenAI Transfer key'
 }
 $deepSeekKeyJson = ConvertTo-JsonString $deepSeekKey
-$transferModelJson = ConvertTo-JsonString $TransferProModel
-$transferReasoningJson = ConvertTo-JsonString $TransferProReasoningEffort
+$transferModelJson = ConvertTo-JsonString $TransferModel
+$transferReasoningJson = ConvertTo-JsonString $TransferReasoningEffort
 
 if (${needsDeepSeek}) {
     $nativeConfig = Expand-PackageTemplate `
@@ -795,6 +789,15 @@ if (${needsTransfer}) {
         OPENAI_API_KEY = $transferKey
     } | ConvertTo-Json
 }
+if (${needsLocalQwen}) {
+    $localQwenConfig = Expand-PackageTemplate `
+        -TemplatePath (Join-Path $templateRoot 'local-qwen36-config.template.toml') `
+        -Values @{
+            '__LOCAL_QWEN_CATALOG_PATH_JSON__' = (
+                ConvertTo-JsonString $localQwenCatalogPath
+            )
+        }
+}
 
 $launcherSettings = [ordered]@{
     schema_version = 5
@@ -810,6 +813,19 @@ $launcherSettings = [ordered]@{
     transfer_profile_root = $transferRoot
     transfer_shared_profile_root = $transferRoot
     transfer_profile_strategy = 'shared-auth-json'
+    local_qwen36_root = $LocalQwenRoot
+    local_qwen36_profile_root = $LocalQwenProfileRoot
+    local_qwen36_model = 'qwen3.6-35b-a3b-coding'
+    local_qwen36_endpoint = 'http://127.0.0.1:61991/v1'
+    local_qwen36_port = 61991
+    local_qwen36_context_window = 262144
+    local_qwen36_kv_cache = 'q8_0'
+    local_qwen36_gpu_kv = $true
+    local_qwen36_flash_attention = $true
+    local_qwen36_reasoning_budget = 512
+    local_qwen36_batch_size = 512
+    local_qwen36_ubatch_size = 256
+    local_qwen36_load_mode = 'none'
 } | ConvertTo-Json -Depth 5
 
 $installParent = Split-Path -Parent $InstallRoot
@@ -827,10 +843,21 @@ $profileChanges = New-Object System.Collections.ArrayList
 try {
     Write-InstallStep 'Preparing a clean local installation...'
     New-Item -ItemType Directory -Path $stageRoot | Out-Null
-    foreach ($item in Get-ChildItem -Force -LiteralPath $payloadApp) {
+    foreach ($item in Get-ChildItem -Force -LiteralPath $appRoot) {
         Copy-Item -LiteralPath $item.FullName `
             -Destination $stageRoot `
             -Recurse `
+            -Force
+    }
+
+    # Keep the installed copy self-describing. These documents are sanitized
+    # source material; credentials and runtime state are never copied here.
+    $sourceDocsRoot = Join-Path $packageRoot 'docs'
+    $installedDocsRoot = Join-Path $stageRoot 'docs'
+    New-Item -ItemType Directory -Force -Path $installedDocsRoot | Out-Null
+    foreach ($document in Get-ChildItem -LiteralPath $sourceDocsRoot -File) {
+        Copy-Item -LiteralPath $document.FullName `
+            -Destination (Join-Path $installedDocsRoot $document.Name) `
             -Force
     }
 
@@ -868,7 +895,7 @@ try {
         throw
     }
 
-    Write-InstallStep 'Creating the isolated DeepSeek and Transfer profiles...'
+    Write-InstallStep 'Creating the isolated provider profiles...'
     $transferBackupRoot = Join-Path $transferRoot (
         'backups\portable-installer\' + $installStamp
     )
@@ -912,6 +939,29 @@ try {
         $null = $profileChanges.Add($change)
     }
 
+    if (${needsLocalQwen}) {
+        $localQwenBackupRoot = Join-Path $LocalQwenProfileRoot (
+            'backups\portable-installer\' + $installStamp
+        )
+        $change = Install-TextFileAtomically `
+            -TargetPath $localQwenConfigPath `
+            -Content $localQwenConfig `
+            -BackupRoot $localQwenBackupRoot `
+            -BackupName 'config.toml'
+        $null = $profileChanges.Add($change)
+
+        $localQwenCatalog = [IO.File]::ReadAllText(
+            (Join-Path $catalogRoot 'local-qwen36-models.json'),
+            [Text.Encoding]::UTF8
+        )
+        $change = Install-TextFileAtomically `
+            -TargetPath $localQwenCatalogPath `
+            -Content $localQwenCatalog `
+            -BackupRoot $localQwenBackupRoot `
+            -BackupName 'models.json'
+        $null = $profileChanges.Add($change)
+    }
+
     Write-InstallStep 'Running the installed launcher checks...'
     $chooserValidation = & (Join-Path $InstallRoot 'Start-Codex-Chooser.ps1') `
         -ValidateOnly
@@ -924,8 +974,8 @@ try {
         $deepSeekCatalogPath,
         (Join-Path $transferRoot 'codex-home\config.toml'),
         (Join-Path $transferRoot 'codex-home\auth.json'),
-        (Join-Path $transferLegacyRoot 'codex-home\config.toml'),
-        (Join-Path $transferLegacyRoot 'codex-home\auth.json')
+        $localQwenConfigPath,
+        $localQwenCatalogPath
     )) {
         Protect-SensitiveFile -Path $sensitivePath
     }
@@ -968,6 +1018,7 @@ finally {
     $nativeConfig = $null
     $transferConfig = $null
     $transferAuth = $null
+    $localQwenConfig = $null
 }
 
 $friendlyResult = $null
@@ -1026,7 +1077,20 @@ $manifest = [ordered]@{
     transfer_profile_root = $transferRoot
     transfer_shared_profile_root = $transferRoot
     transfer_profile_strategy = 'shared-auth-json'
-    transfer_reference = '260902'
+    local_qwen36_root = $LocalQwenRoot
+    local_qwen36_profile_root = $LocalQwenProfileRoot
+    local_qwen36_model = 'qwen3.6-35b-a3b-coding'
+    local_qwen36_endpoint = 'http://127.0.0.1:61991/v1'
+    local_qwen36_port = 61991
+    local_qwen36_context_window = 262144
+    local_qwen36_kv_cache = 'q8_0'
+    local_qwen36_gpu_kv = $true
+    local_qwen36_flash_attention = $true
+    local_qwen36_reasoning_budget = 512
+    local_qwen36_batch_size = 512
+    local_qwen36_ubatch_size = 256
+    local_qwen36_load_mode = 'none'
+    transfer_reference = 'official-current-docs'
     friendly_link = $(if ($NoFriendlyLink) { $null } else { $friendlyLinkPath })
     desktop_shortcut = $(
         if ($NoDesktopShortcut -or [string]::IsNullOrWhiteSpace($DesktopPath)) {

@@ -1,8 +1,6 @@
 [CmdletBinding()]
 param(
     [switch]$ValidateOnly,
-    [ValidateSet('OpenAI-transfer', 'OpenAI-transfer-Pro')]
-    [string]$TransferMode = 'OpenAI-transfer-Pro',
     [ValidateScript({
         [string]::IsNullOrWhiteSpace($_) -or
         $_ -match '^[A-Za-z0-9][A-Za-z0-9._-]*$'
@@ -26,63 +24,30 @@ try {
 catch {
     throw 'launcher.settings.json is not valid JSON.'
 }
-$legacyActorOptional = [bool](
-    $launcherSettings.PSObject.Properties['transfer_legacy_actor_optional'] -and
-    $launcherSettings.transfer_legacy_actor_optional
-)
-
-function Get-ConfiguredProfileRoot {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$SettingName
-    )
-
-    if (
-        -not $launcherSettings.PSObject.Properties[$SettingName] -or
-        [string]::IsNullOrWhiteSpace([string]$launcherSettings.$SettingName)
-    ) {
-        throw "launcher.settings.json is missing $SettingName."
-    }
-    return [IO.Path]::GetFullPath([string]$launcherSettings.$SettingName)
-}
-
-# New installations use one auth.json profile. The station's web console
-# selects Pro/Legacy routing for the same key, so the local launcher no longer
-# needs to select a second profile. Older installations are still understood
-# below so an AI agent can roll back or repair them without losing history.
-$useSharedProfile = [bool](
+$profileSetting = if (
     $launcherSettings.PSObject.Properties['transfer_shared_profile_root'] -and
     -not [string]::IsNullOrWhiteSpace(
         [string]$launcherSettings.transfer_shared_profile_root
     )
-)
-if ($useSharedProfile) {
-    $profileRoot = Get-ConfiguredProfileRoot `
-        -SettingName 'transfer_shared_profile_root'
-    $profileAuthMode = 'auth.json'
+) {
+    [string]$launcherSettings.transfer_shared_profile_root
 }
-elseif ($TransferMode -eq 'OpenAI-transfer') {
-    $profileRoot = Get-ConfiguredProfileRoot `
-        -SettingName 'transfer_legacy_profile_root'
-    $profileAuthMode = 'environment-key'
+elseif (
+    $launcherSettings.PSObject.Properties['transfer_profile_root'] -and
+    -not [string]::IsNullOrWhiteSpace(
+        [string]$launcherSettings.transfer_profile_root
+    )
+) {
+    [string]$launcherSettings.transfer_profile_root
 }
 else {
-    if ($launcherSettings.PSObject.Properties['transfer_pro_profile_root']) {
-        $profileRoot = Get-ConfiguredProfileRoot `
-            -SettingName 'transfer_pro_profile_root'
-    }
-    else {
-        # Keep compatibility with the first AI-installed package schema.
-        $profileRoot = Get-ConfiguredProfileRoot `
-            -SettingName 'transfer_profile_root'
-    }
-    $profileAuthMode = 'auth.json'
+    throw 'launcher.settings.json is missing the shared Transfer profile root.'
 }
+$profileRoot = [IO.Path]::GetFullPath($profileSetting)
 $codexHome = Join-Path $profileRoot 'codex-home'
 $codexConfigPath = Join-Path $codexHome 'config.toml'
 $authPath = Join-Path $codexHome 'auth.json'
 $electronData = Join-Path $profileRoot 'electron-data'
-$pidPath = Join-Path $installRoot 'bridge.pid'
 $logDirectory = Join-Path $profileRoot 'logs'
 
 function Show-CodexMessage {
@@ -131,24 +96,6 @@ function Resolve-CodexDesktopExecutable {
     throw 'The installed Codex desktop executable could not be located.'
 }
 
-function Stop-DeepSeekBridgeIfRunning {
-    if (-not (Test-Path -LiteralPath $pidPath)) {
-        return
-    }
-
-    $savedPid = 0
-    if ([int]::TryParse(
-        (Get-Content -Raw -LiteralPath $pidPath).Trim(),
-        [ref]$savedPid
-    )) {
-        $savedProcess = Get-Process -Id $savedPid -ErrorAction SilentlyContinue
-        if ($savedProcess -and $savedProcess.ProcessName -eq 'moonbridge') {
-            Stop-Process -Id $savedPid -Force -ErrorAction SilentlyContinue
-        }
-    }
-    Remove-Item -LiteralPath $pidPath -Force -ErrorAction SilentlyContinue
-}
-
 function Get-TransferAuthenticationKey {
     try {
         $auth = Get-Content -Raw -LiteralPath $authPath | ConvertFrom-Json
@@ -183,7 +130,7 @@ function Read-TransferProfileConfiguration {
         -not $providerLine.Success -or
         $providerLine.Groups[1].Value -ne 'OpenAI'
     ) {
-        throw ('The ' + $TransferMode + ' profile must use model_provider = "OpenAI".')
+        throw 'The OpenAI Transfer profile must use model_provider = "OpenAI".'
     }
 
     $baseUrlLine = [regex]::Match(
@@ -200,7 +147,7 @@ function Read-TransferProfileConfiguration {
         ) -or
         $parsedBaseUrl.Scheme -notin @('http', 'https')
     ) {
-        throw "The $TransferMode profile needs a valid station base_url."
+        throw 'The OpenAI Transfer profile needs a valid station base_url.'
     }
 
     $wireApiLine = [regex]::Match(
@@ -211,41 +158,18 @@ function Read-TransferProfileConfiguration {
         -not $wireApiLine.Success -or
         $wireApiLine.Groups[1].Value -ne 'responses'
     ) {
-        throw ('The ' + $TransferMode + ' profile must use wire_api = "responses".')
+        throw 'The OpenAI Transfer profile must use wire_api = "responses".'
     }
 
     $requiresAuthLine = [regex]::Match(
         $configText,
         '(?m)^requires_openai_auth\s*=\s*(true|false)\s*\r?$'
     )
-    $expectedRequiresAuth = if ($profileAuthMode -eq 'auth.json') {
-        'true'
-    }
-    else {
-        'false'
-    }
     if (
         -not $requiresAuthLine.Success -or
-        $requiresAuthLine.Groups[1].Value -ne $expectedRequiresAuth
+        $requiresAuthLine.Groups[1].Value -ne 'true'
     ) {
-        throw "The $TransferMode profile has an unexpected authentication mode."
-    }
-
-    $envKeyLine = [regex]::Match(
-        $configText,
-        '(?m)^env_key\s*=\s*"([^"]*)"\s*\r?$'
-    )
-    $actorHeaderLine = [regex]::Match(
-        $configText,
-        '(?m)^http_headers\s*=\s*\{\s*"([^"]+)"\s*=\s*"[^"]*"\s*\}\s*\r?$'
-    )
-    if ($profileAuthMode -eq 'environment-key') {
-        if (-not $envKeyLine.Success) {
-            throw 'The legacy OpenAI-transfer profile needs an env_key.'
-        }
-        if (-not $legacyActorOptional -and -not $actorHeaderLine.Success) {
-            throw 'The current legacy OpenAI-transfer profile needs its actor header.'
-        }
+        throw 'The OpenAI Transfer profile must use auth.json authentication.'
     }
 
     [ordered]@{
@@ -253,10 +177,8 @@ function Read-TransferProfileConfiguration {
         BaseUrl = $parsedBaseUrl.AbsoluteUri.TrimEnd('/')
         WireApi = $wireApiLine.Groups[1].Value
         RequiresOpenAIAuth = $requiresAuthLine.Groups[1].Value
-        AuthMode = $profileAuthMode
-        ProfileStrategy = if ($useSharedProfile) { 'shared-auth-json' } else { 'compatibility' }
-        EnvironmentKey = if ($envKeyLine.Success) { $envKeyLine.Groups[1].Value } else { '' }
-        ActorHeader = if ($actorHeaderLine.Success) { $actorHeaderLine.Groups[1].Value } else { '' }
+        AuthMode = 'auth.json'
+        ProfileStrategy = 'shared-auth-json'
     }
 }
 
@@ -353,13 +275,7 @@ try {
         }
         [ordered]@{
             Status = 'OK'
-            TransferMode = if ($useSharedProfile) {
-                'shared (web-selected Pro/Legacy)'
-            }
-            else {
-                $TransferMode
-            }
-            RequestedTransferMode = $TransferMode
+            TransferMode = 'shared (web-selected Pro/Legacy)'
             ModelOverride = $(if ($Model) { $Model } else { '(preserve configured model)' })
             CurrentModel = $modelLine.Groups[1].Value
             CurrentProvider = $profileSettings.Provider
@@ -368,13 +284,12 @@ try {
             RequiresOpenAIAuth = $profileSettings.RequiresOpenAIAuth
             AuthenticationMode = $profileSettings.AuthMode
             ProfileStrategy = $profileSettings.ProfileStrategy
-            ServerSideModeSwitch = $useSharedProfile
+            ServerSideModeSwitch = $true
             CurrentReasoningEffort = $currentEffort
             ProfileRoot = $profileRoot
             TransferCodexHome = $codexHome
             ElectronData = $electronData
             AuthFilePresent = (Test-Path -LiteralPath $authPath)
-            BridgePidFile = $pidPath
         }
         return
     }
@@ -387,11 +302,10 @@ try {
     New-Item -ItemType Directory -Force -Path $logDirectory | Out-Null
     New-Item -ItemType Directory -Force -Path $electronData | Out-Null
 
-    Stop-DeepSeekBridgeIfRunning
     $profileSettings = Read-TransferProfileConfiguration
     Set-TransferModel -RequestedModel $Model
 
-    $transferKey = Get-TransferAuthenticationKey
+    Assert-TransferAuthentication
 
     $appExe = Resolve-CodexDesktopExecutable
     $startInfo = New-Object System.Diagnostics.ProcessStartInfo
@@ -400,9 +314,6 @@ try {
     $startInfo.UseShellExecute = $false
     $startInfo.EnvironmentVariables['CODEX_HOME'] = $codexHome
     $startInfo.EnvironmentVariables['CODEX_ELECTRON_USER_DATA_PATH'] = $electronData
-    if ($profileSettings.AuthMode -eq 'environment-key') {
-        $startInfo.EnvironmentVariables[$profileSettings.EnvironmentKey] = $transferKey
-    }
     $appProcess = [System.Diagnostics.Process]::Start($startInfo)
     if (-not $appProcess) {
         throw 'Codex did not start.'
