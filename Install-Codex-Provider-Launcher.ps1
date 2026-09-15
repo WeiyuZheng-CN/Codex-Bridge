@@ -823,6 +823,14 @@ $launcherSettings = [ordered]@{
     local_qwen36_gpu_kv = $true
     local_qwen36_flash_attention = $true
     local_qwen36_reasoning_budget = 512
+    local_qwen36_reasoning_levels = @(
+        'minimal',
+        'low',
+        'medium',
+        'high',
+        'xhigh',
+        'max'
+    )
     local_qwen36_batch_size = 512
     local_qwen36_ubatch_size = 256
     local_qwen36_load_mode = 'none'
@@ -1087,6 +1095,14 @@ $manifest = [ordered]@{
     local_qwen36_gpu_kv = $true
     local_qwen36_flash_attention = $true
     local_qwen36_reasoning_budget = 512
+    local_qwen36_reasoning_levels = @(
+        'minimal',
+        'low',
+        'medium',
+        'high',
+        'xhigh',
+        'max'
+    )
     local_qwen36_batch_size = 512
     local_qwen36_ubatch_size = 256
     local_qwen36_load_mode = 'none'

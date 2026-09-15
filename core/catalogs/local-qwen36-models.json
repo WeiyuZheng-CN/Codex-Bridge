@@ -4,10 +4,31 @@
       "slug": "qwen3.6-35b-a3b-coding",
       "display_name": "Local Qwen3.6",
       "description": "Local Qwen3.6 35B-A3B Q4_K_M coding model.",
+      "default_reasoning_level": "low",
       "supported_reasoning_levels": [
+        {
+          "effort": "minimal",
+          "description": "Fastest responses with minimal reasoning"
+        },
         {
           "effort": "low",
           "description": "Fast local coding responses"
+        },
+        {
+          "effort": "medium",
+          "description": "Balanced local coding reasoning"
+        },
+        {
+          "effort": "high",
+          "description": "Deeper reasoning for complex coding tasks"
+        },
+        {
+          "effort": "xhigh",
+          "description": "Very deep reasoning for difficult coding tasks"
+        },
+        {
+          "effort": "max",
+          "description": "Maximum available local reasoning depth"
         }
       ],
       "shell_type": "unified_exec",

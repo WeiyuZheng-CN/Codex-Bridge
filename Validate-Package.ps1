@@ -211,6 +211,41 @@ if (Test-Path -LiteralPath $localQwenCatalogPath -PathType Leaf) {
         if ($localQwenSlugs -notcontains 'qwen3.6-35b-a3b-coding') {
             $errors.Add('Local Qwen3.6 catalog is missing its verified model slug.')
         }
+        $localQwenModel = @(
+            $localQwenCatalog.models |
+                Where-Object { $_.slug -eq 'qwen3.6-35b-a3b-coding' }
+        )
+        $requiredReasoningLevels = @(
+            'minimal',
+            'low',
+            'medium',
+            'high',
+            'xhigh',
+            'max'
+        )
+        if ($localQwenModel.Count -ne 1) {
+            $errors.Add('Local Qwen3.6 catalog must contain exactly one model entry.')
+        }
+        else {
+            $actualReasoningLevels = @(
+                $localQwenModel[0].supported_reasoning_levels |
+                    ForEach-Object { [string]$_.effort }
+            )
+            foreach ($level in $requiredReasoningLevels) {
+                if ($actualReasoningLevels -notcontains $level) {
+                    $errors.Add(
+                        "Local Qwen3.6 catalog is missing reasoning level $level."
+                    )
+                }
+            }
+            if (
+                [string]$localQwenModel[0].default_reasoning_level -ne 'low'
+            ) {
+                $errors.Add(
+                    'Local Qwen3.6 catalog default reasoning level must be low.'
+                )
+            }
+        }
     }
     catch {
         $errors.Add('Could not inspect the Local Qwen3.6 model catalog.')

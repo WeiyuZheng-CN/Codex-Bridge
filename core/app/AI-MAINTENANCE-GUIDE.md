@@ -48,7 +48,10 @@ source package for the digest, GPU flags, and rollback procedure.
 The current tuned defaults are `262144` context tokens, CUDA `q8_0` KV cache,
 Flash Attention enabled, and low reasoning with a 512-token budget. The full
 context was tested on the RTX 5060 Laptop GPU; it uses most of the available
-VRAM and should not be combined with another heavy GPU workload.
+VRAM and should not be combined with another heavy GPU workload. The Local
+Qwen3.6 model catalog exposes minimal, low, medium, high, xhigh, and max
+reasoning effort. Low remains the profile default; higher levels are
+request-time controls and may use more tokens and take longer.
 
 For current station behavior, read:
 

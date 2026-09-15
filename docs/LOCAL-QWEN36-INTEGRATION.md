@@ -94,6 +94,11 @@ The model is larger than the laptop's 8 GB VRAM. The working launcher uses:
 --load-mode none
 ```
 
+The Codex model catalog exposes the complete local reasoning scale:
+minimal, low, medium, high, xhigh, and max. The profile default remains low.
+These are request-time reasoning controls and do not change the quantized
+model weights. Higher levels may use more tokens and take longer.
+
 `--cpu-moe` keeps the large MoE expert weights in system RAM while eligible
 shared/attention layers and the quantized KV cache use CUDA. “GPU mode”
 therefore means hybrid GPU/CPU execution, not that the whole 20.2 GiB model

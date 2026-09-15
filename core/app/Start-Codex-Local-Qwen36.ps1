@@ -187,6 +187,37 @@ function Read-LocalProfileConfiguration {
         -not (Test-Path -LiteralPath $catalogLine.Groups[1].Value -PathType Leaf)) {
         throw 'The Local Qwen3.6 model catalog is missing.'
     }
+    try {
+        $catalog = Get-Content -Raw -LiteralPath $catalogLine.Groups[1].Value |
+            ConvertFrom-Json
+        $catalogModel = @(
+            $catalog.models |
+                Where-Object { $_.slug -eq 'qwen3.6-35b-a3b-coding' }
+        )
+        $requiredLevels = @(
+            'minimal',
+            'low',
+            'medium',
+            'high',
+            'xhigh',
+            'max'
+        )
+        if ($catalogModel.Count -ne 1) {
+            throw 'the catalog must contain exactly one Local Qwen3.6 model'
+        }
+        $actualLevels = @(
+            $catalogModel[0].supported_reasoning_levels |
+                ForEach-Object { [string]$_.effort }
+        )
+        foreach ($level in $requiredLevels) {
+            if ($actualLevels -notcontains $level) {
+                throw "the catalog is missing reasoning level $level"
+            }
+        }
+    }
+    catch {
+        throw "The Local Qwen3.6 model catalog is invalid: $($_.Exception.Message)"
+    }
     $providerText = $provider.Groups[1].Value
     $baseUrl = [regex]::Match(
         $providerText,
@@ -216,6 +247,7 @@ function Read-LocalProfileConfiguration {
         Model = $values.model
         Provider = $values.model_provider
         ReasoningEffort = $values.model_reasoning_effort
+        ReasoningLevels = @($actualLevels)
         BaseUrl = $baseUrl.Groups[1].Value
         WireApi = $wireApi.Groups[1].Value
         RequiresOpenAIAuth = $requiresAuth.Groups[1].Value
@@ -313,6 +345,7 @@ try {
             WireApi = $profile.WireApi
             RequiresOpenAIAuth = $profile.RequiresOpenAIAuth
             ReasoningEffort = $profile.ReasoningEffort
+            ReasoningLevels = @($profile.ReasoningLevels)
             ContextWindow = $profile.ContextWindow
             LocalQwenRoot = $localQwenRoot
             ModelPath = $modelPath

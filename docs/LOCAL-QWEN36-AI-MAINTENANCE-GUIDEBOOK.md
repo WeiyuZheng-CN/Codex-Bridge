@@ -322,7 +322,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "<Documents>\Codex\local
 
 The test checks health, submits a Responses request with enough output budget
 for the configured reasoning allowance, requires a non-empty final answer
-message containing the requested function, submits a legacy completion
+message with basic code structure, submits a legacy completion
 request, records NVIDIA telemetry, and writes:
 
 - `gpu-verification.txt`
@@ -891,6 +891,12 @@ settings.
 The user's earlier 128K choice is a sensible interactive compromise. In
 binary units, 128K is 131072:
 
+The Codex catalog exposes minimal, low, medium, high, xhigh, and max. The
+isolated profile defaults to low. The launcher keeps low effort and a
+512-token reasoning budget by default; Codex may request another catalog level
+per conversation. Max is selectable, but its latency and token use should be
+measured for the workload.
+
 * 262144 gives maximum repository and history capacity.
 * 131072 usually gives better memory headroom and interactive behavior.
 * 65536 or 32768 are recovery settings for heavy background workloads.
@@ -969,7 +975,7 @@ $result | ConvertTo-Json -Depth 20
 ~~~
 
 Pass requires status completed, a message item with non-empty output_text, and
-the requested function in that final answer. A very small output budget can be
+basic code structure in that final answer. A very small output budget can be
 consumed entirely by the configured reasoning allowance and produce a
 completed response with no final message; that is a failed coding acceptance
 test. Also run the packaged test:

@@ -34,6 +34,8 @@ troubleshooting checks.
 The current local profile uses the full 262K context, GPU `q8_0` KV cache,
 Flash Attention, and low reasoning with a 512-token budget. It is the maximum
 context configuration tested on this RTX 5060 Laptop GPU.
+The model picker exposes minimal, low, medium, high, xhigh, and max reasoning
+effort; low remains the default.
 
 The detailed Local Qwen3.6 AI maintenance guide is installed in
 docs\LOCAL-QWEN36-AI-MAINTENANCE-GUIDEBOOK.md. Read it for exact hashes,

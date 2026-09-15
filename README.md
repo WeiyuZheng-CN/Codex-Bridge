@@ -63,7 +63,9 @@ llama.cpp Responses API，并且不需要 OpenAI 登录；模型与 CUDA 启动�
 `local-qwen36-codex`。Transfer 使用一份 `auth.json` 配置；
 `OpenAI-transfer-Pro` 与 `OpenAI-transfer` 由中转站网页对同一个 Key 做服务端切换。
 Local Qwen3.6 currently uses the full 262K context with CUDA `q8_0` KV cache,
-Flash Attention, and low reasoning with a 512-token budget.
+Flash Attention, and low reasoning with a 512-token budget. The Codex model
+catalog exposes the complete local reasoning scale: minimal, low, medium,
+high, xhigh, and max. Low remains the default.
 未安装的模式仍保留在漂亮界面中，
 但会淡化显示；以后可以让 agent 补装。
 
