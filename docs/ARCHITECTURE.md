@@ -21,7 +21,8 @@ Start-Codex-Chooser.ps1
     Codex model picker -> V4 Pro / V4 Flash / V4 Flash Vision
   OpenAI Transfer     -> one shared auth.json profile -> station Responses API
     Pro / Legacy       -> selected by the transfer-station web console
-  Local Qwen3.6       -> local llama.cpp CUDA server -> isolated profile
+  Local Qwen3.6       -> Ollama Responses API -> isolated profile
+                         llama.cpp CUDA server remains fallback
 ```
 
 `launcher.settings.json`, generated on the target computer, records the Codex
@@ -44,14 +45,17 @@ Default destinations are:
 The agent may choose different safe paths. The normal `%USERPROFILE%\.codex`
 profile is used only by the ChatGPT launcher and is not rewritten.
 
-Local Qwen3.6 is credential-free. Its isolated profile uses the local
-Responses API at `http://127.0.0.1:61991/v1` with
-`requires_openai_auth = false`. The Q4_K_M model is about 20.2 GiB, so the
-verified model/runtime root is kept outside the portable launcher package.
+Local Qwen3.6 is credential-free. Its primary isolated profile uses Codex's
+built-in Ollama provider and the local Responses API at
+`http://127.0.0.1:11434/v1`. The Q4_K_M model is about 22 GiB and is managed by
+Ollama outside the portable launcher package. The verified llama.cpp profile
+at `http://127.0.0.1:61991/v1` remains available as a fallback.
 The current model digest is
 `D372DE8E934898A59E6CCFABC3368474711384D8F1FD4D22D87A3F0A45400CDC`.
-The tested runtime uses the full `262144`-token context, CUDA `q8_0` KV cache,
-and Flash Attention on; the MoE experts remain in system RAM.
+The tested Ollama profile starts at `131072` tokens and supports tools,
+thinking, and image input. The fallback runtime uses the full `262144`-token
+context, CUDA `q8_0` KV cache, and Flash Attention; the MoE experts remain in
+system RAM.
 The model weights and CUDA runtime are external assets and are deliberately
 not bundled in this public source package. The target machine must stage them
 outside the repository before selecting Local Qwen3.6.

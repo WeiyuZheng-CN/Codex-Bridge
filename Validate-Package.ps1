@@ -16,6 +16,7 @@ $requiredFiles = @(
     'docs\ARCHITECTURE.md',
     'docs\LOCAL-QWEN36-INTEGRATION.md',
     'docs\LOCAL-QWEN36-AI-MAINTENANCE-GUIDEBOOK.md',
+    'docs\LOCAL-QWEN36-OLLAMA-IMPLEMENTATION-HANDOFF.md',
     'Install.cmd',
     'Install-Codex-Provider-Launcher.ps1',
     'Validate-Package.ps1',
@@ -25,7 +26,11 @@ $requiredFiles = @(
     'core\app\Start-Codex-DeepSeek.ps1',
     'core\app\Start-Codex-OpenAI-Transfer.ps1',
     'core\app\Start-Codex-Local-Qwen36.ps1',
+    'core\app\Start-Codex-Local-Qwen36-Ollama.ps1',
     'core\app\Start-Qwen36-GPU-Coding.ps1',
+    'core\app\Start-Qwen36-Ollama.ps1',
+    'core\app\Stop-Qwen36-Ollama.ps1',
+    'core\app\Test-Qwen36-Ollama.ps1',
     'core\app\qwen3.6-codex-compatible.jinja',
     'core\app\Install-Desktop-Shortcuts.ps1',
     'core\app\Codex.ico',
@@ -34,8 +39,10 @@ $requiredFiles = @(
     'core\app\EVOLVE-WITH-AI.md',
     'core\templates\native-config.template.toml',
     'core\templates\transfer-shared-config.template.toml',
+    'core\templates\local-qwen36-ollama-config.template.toml',
     'core\catalogs\native-models.json',
     'core\catalogs\local-qwen36-models.json',
+    'core\catalogs\local-qwen36-ollama-models.json',
     'references\deepseek\260909\README.md',
     'references\deepseek\260909\native-config.example.toml'
 )
@@ -251,6 +258,57 @@ if (Test-Path -LiteralPath $localQwenCatalogPath -PathType Leaf) {
     }
     catch {
         $errors.Add('Could not inspect the Local Qwen3.6 model catalog.')
+    }
+}
+
+$localQwenOllamaCatalogPath = Join-Path $packageRoot 'core\catalogs\local-qwen36-ollama-models.json'
+if (Test-Path -LiteralPath $localQwenOllamaCatalogPath -PathType Leaf) {
+    try {
+        $localQwenOllamaCatalog = Get-Content -Raw -LiteralPath $localQwenOllamaCatalogPath |
+            ConvertFrom-Json
+        $ollamaModel = @(
+            $localQwenOllamaCatalog.models |
+                Where-Object { $_.slug -eq 'qwen3.6-35b-a3b-coding' }
+        )
+        if ($ollamaModel.Count -ne 1) {
+            $errors.Add('Local Qwen3.6 Ollama catalog must contain exactly one model entry.')
+        }
+        else {
+            $ollamaLevels = @(
+                $ollamaModel[0].supported_reasoning_levels |
+                    ForEach-Object { [string]$_.effort }
+            )
+            foreach ($level in $requiredReasoningLevels) {
+                if ($ollamaLevels -notcontains $level) {
+                    $errors.Add(
+                        "Local Qwen3.6 Ollama catalog is missing reasoning level $level."
+                    )
+                }
+            }
+            if ([string]$ollamaModel[0].default_reasoning_level -ne 'low') {
+                $errors.Add(
+                    'Local Qwen3.6 Ollama catalog default reasoning level must be low.'
+                )
+            }
+            if (@($ollamaModel[0].input_modalities) -notcontains 'image') {
+                $errors.Add(
+                    'Local Qwen3.6 Ollama catalog must advertise image input.'
+                )
+            }
+            if ([int]$ollamaModel[0].context_window -ne 131072) {
+                $errors.Add(
+                    'Local Qwen3.6 Ollama catalog must start at a 131072-token context.'
+                )
+            }
+            if ([int]$ollamaModel[0].max_context_window -gt 262144) {
+                $errors.Add(
+                    'Local Qwen3.6 Ollama catalog must not exceed the model context.'
+                )
+            }
+        }
+    }
+    catch {
+        $errors.Add('Could not inspect the Local Qwen3.6 Ollama model catalog.')
     }
 }
 

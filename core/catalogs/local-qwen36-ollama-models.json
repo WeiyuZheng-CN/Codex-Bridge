@@ -1,0 +1,70 @@
+{
+  "models": [
+    {
+      "slug": "qwen3.6-35b-a3b-coding",
+      "display_name": "Local Qwen3.6",
+      "description": "Local Qwen3.6 35B-A3B Q4_K_M through Ollama.",
+      "default_reasoning_level": "low",
+      "supported_reasoning_levels": [
+        {
+          "effort": "minimal",
+          "description": "Fastest local responses"
+        },
+        {
+          "effort": "low",
+          "description": "Fast local coding responses"
+        },
+        {
+          "effort": "medium",
+          "description": "Balanced local coding reasoning"
+        },
+        {
+          "effort": "high",
+          "description": "Deeper reasoning for complex coding tasks"
+        },
+        {
+          "effort": "xhigh",
+          "description": "Very deep reasoning for difficult coding tasks"
+        },
+        {
+          "effort": "max",
+          "description": "Maximum available local reasoning depth"
+        }
+      ],
+      "shell_type": "unified_exec",
+      "visibility": "list",
+      "supported_in_api": true,
+      "priority": 1,
+      "additional_speed_tiers": [],
+      "availability_nux": null,
+      "upgrade": null,
+      "base_instructions": "You are a local Qwen3.6 coding assistant. Prefer correct, runnable code and concise explanations. Inspect the workspace before changing files and verify your work.",
+      "supports_reasoning_summaries": true,
+      "default_reasoning_summary": "none",
+      "support_verbosity": false,
+      "default_verbosity": "low",
+      "apply_patch_tool_type": "freeform",
+      "web_search_tool_type": "text",
+      "truncation_policy": {
+        "mode": "tokens",
+        "limit": 124000
+      },
+      "supports_parallel_tool_calls": true,
+      "supports_image_detail_original": false,
+      "experimental_supported_tools": [],
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "supports_search_tool": false,
+      "context_window": 131072,
+      "max_context_window": 262144,
+      "effective_context_window_percent": 95,
+      "reasoning_summary_format": "experimental",
+      "minimal_client_version": "0.154.0",
+      "multi_agent_version": "v2",
+      "use_responses_lite": false,
+      "include_skills_usage_instructions": true
+    }
+  ]
+}

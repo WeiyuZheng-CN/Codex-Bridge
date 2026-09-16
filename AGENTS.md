@@ -25,7 +25,7 @@ the package author's machine.
 | `ChatGPT` | ChatGPT | Existing Codex login; no new key |
 | `DeepSeek` | V4 Pro, V4 Flash, or V4 Flash Vision; select inside Codex | DeepSeek API key |
 | `Transfer` | OpenAI Transfer; switch Pro/Legacy at the station website | One current station key |
-| `LocalQwen36` | Local Qwen3.6 35B-A3B Q4_K_M through llama.cpp CUDA | Verified local runtime; no key |
+| `LocalQwen36` | Local Qwen3.6 35B-A3B Q4_K_M through Ollama, with llama.cpp CUDA fallback | Installed Ollama/model; no key |
 
 `ChatGPT` is included automatically. One DeepSeek key serves the native profile
 and its Pro, Flash, and Flash Vision model choices. The current station's
@@ -33,12 +33,13 @@ and its Pro, Flash, and Flash Vision model choices. The current station's
 the web console performs the server-side switch for the same key. The old
 `TransferPro` and `TransferLegacy` names remain accepted as installer aliases.
 
-`LocalQwen36` is credential-free. It requires the separately staged
-`Documents\Codex\local-qwen36` runtime/model root and creates the isolated
-`Documents\Codex\local-qwen36-codex` profile. It never rewrites the normal
-`%USERPROFILE%\.codex` profile.
-The current tested defaults are a 262144-token context, CUDA q8 KV cache,
-Flash Attention, and low reasoning with a 512-token budget.
+`LocalQwen36` is credential-free. It requires Ollama with the verified
+`qwen3.6:35b-a3b-coding` model and creates the isolated
+`Documents\Codex\local-qwen36-ollama-codex` profile. It never rewrites the
+normal `%USERPROFILE%\.codex` profile. The primary tested context is 131072
+tokens with tools, thinking, and image input; the separately staged
+`Documents\Codex\local-qwen36` llama.cpp CUDA route remains the 262144-token
+fallback.
 
 Prefer private one-line files outside the extracted package. Pass file paths
 to the installer; never read or print their contents. If files do not exist,

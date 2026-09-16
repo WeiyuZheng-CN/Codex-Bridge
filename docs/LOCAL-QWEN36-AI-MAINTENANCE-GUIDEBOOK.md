@@ -47,6 +47,26 @@ installation in this workspace. It describes what is confirmed, what may be
 changed safely, what must remain invariant, and how to prove that a change did
 not break the installation.
 
+## Current backend selection
+
+The current product selects Ollama as the primary Local Qwen backend because
+the installed Ollama 0.34.0 path has passed Codex CLI text, structured tool,
+file-command, and image-input tests. Its primary endpoint is
+`http://127.0.0.1:11434/v1`, its Codex provider is the built-in `ollama` provider,
+and its isolated profile is `<Documents>\Codex\local-qwen36-ollama-codex`.
+
+The previous llama.cpp CUDA route remains a deliberate fallback at
+`http://127.0.0.1:61991/v1` with the profile
+`<Documents>\Codex\local-qwen36-codex`. Do not remove or overwrite that route
+while maintaining Ollama. The fallback still provides the tested 262144-token
+context, q8 KV cache, Flash Attention, and Codex-compatible Jinja template.
+
+The Ollama profile starts at 131072 tokens to leave memory headroom. Its model
+name is `qwen3.6-35b-a3b-coding`, an Ollama alias that reuses the installed
+`qwen3.6:35b-a3b-coding` blob. Ollama has returned a structured Responses
+`function_call` and accepted a Responses `input_image` request in direct tests.
+These raw and CLI tests do not replace the final attended desktop GUI test.
+
 The original acquisition workspace was:
 
 ```text
@@ -79,9 +99,11 @@ hashed, and tested separately before promotion.
 
 ### Current result
 
-GPU inference is working through the standalone upstream llama.cpp runtime.
-The model is not being run through Ollama's bundled llama-server because that
-runner fails on this machine during CUDA initialization.
+The production Local Qwen route now uses Ollama 0.34.0 because it passed the
+Codex structured-tool and image-input tests. The standalone upstream llama.cpp
+route remains available as a verified 262K CUDA fallback. The two runners use
+the same family of local Q4_K_M weights but have separate profiles and
+endpoints.
 
 The working architecture is hybrid:
 
@@ -91,6 +113,13 @@ The working architecture is hybrid:
 
 ### Verified evidence
 
+- Ollama model inventory: `qwen3.6:35b-a3b-coding` plus the local alias
+  `qwen3.6-35b-a3b-coding`, both sharing digest prefix `6f7983cafbe2`
+- Ollama `/v1/responses`: returned a structured `function_call` with JSON
+  arguments for the probe function
+- Codex CLI through Ollama: executed `command_execution` and read a local
+  workspace file successfully
+- Codex CLI through Ollama: described a supplied local image successfully
 - GPU device discovery: `CUDA0: NVIDIA GeForce RTX 5060 Laptop GPU`
 - GPU memory: `7127 MiB / 8151 MiB` observed during the 262K q8-KV test
 - GPU server health: HTTP `200`
@@ -102,10 +131,12 @@ The working architecture is hybrid:
 
 ### Known limitation
 
-The installed Ollama 0.34.0 runner detects the GPU but fails for this model
-with CUDA out-of-memory/shared-object/Flash-Attention errors. This is a
-runtime compatibility problem, not evidence that the model file is corrupt.
-Use the packaged upstream llama.cpp launcher for GPU inference.
+Ollama's model runner uses its own context and memory policy. The primary
+profile starts at 131072 tokens and must be benchmarked separately from the
+262144-token llama.cpp fallback. Codex telemetry emits harmless warnings for
+the colon-form Ollama model name, so the product uses the local hyphenated
+Ollama alias where possible. Full desktop GUI validation after a user restart
+is still required.
 
 ---
 

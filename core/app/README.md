@@ -24,12 +24,12 @@ header, an AI agent may retain the old compatibility profile and adapt it
 locally. Current station references are documented at:
 <https://docs.ai-pixel.online/docs/api>.
 
-Local Qwen3.6 starts the verified upstream llama.cpp b10964 CUDA runtime on
-`127.0.0.1:61991` when its card is selected. It uses an isolated Codex profile
-with `requires_openai_auth = false`; the normal `%USERPROFILE%\.codex` profile
-is not changed. See `docs/LOCAL-QWEN36-INTEGRATION.md` in the source package
-for the model digest, 262K context/GPU-q8 settings, rollback path, and
-troubleshooting checks.
+Local Qwen3.6 starts the installed Ollama service on `127.0.0.1:11434` when its
+card is selected. It uses Codex's built-in `ollama` provider and an isolated
+profile; the normal `%USERPROFILE%\.codex` profile is not changed. The tested
+Ollama route supports structured tool calls and image input. The original
+llama.cpp CUDA route remains available on `127.0.0.1:61991` as a fallback. See
+`docs/LOCAL-QWEN36-INTEGRATION.md` for both paths and rollback checks.
 
 The current local profile uses the full 262K context, GPU `q8_0` KV cache,
 Flash Attention, and low reasoning with a 512-token budget. It is the maximum

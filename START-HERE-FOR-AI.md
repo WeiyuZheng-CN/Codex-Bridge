@@ -22,11 +22,13 @@ requested modes.
 ChatGPT is the base mode. Do not create a second DeepSeek selector: start the
 shared native profile and let Codex's own model picker select Pro, Flash, or
 Flash Vision.
-Local Qwen3.6 starts the verified local llama.cpp CUDA server on
-127.0.0.1:61991 and uses an isolated profile with
-`requires_openai_auth = false`. It does not change `%USERPROFILE%\.codex`.
-The current tested runtime uses the full 262144-token context with CUDA q8 KV
-cache, Flash Attention, and low reasoning with a 512-token budget.
+Local Qwen3.6 starts the installed Ollama server on 127.0.0.1:11434 and uses
+the built-in Codex `ollama` provider with an isolated profile. It does not
+change `%USERPROFILE%\.codex`. The tested Ollama path supports structured
+Responses function calls and image input. The verified llama.cpp CUDA server
+on 127.0.0.1:61991 remains the fallback and retains the full 262144-token
+context with CUDA q8 KV cache, Flash Attention, and low reasoning with a
+512-token budget.
 The public source package does not contain the Qwen3.6 weight file or the
 llama.cpp/CUDA runtime. Those assets must be staged separately from the
 official sources described in README.md and the Local Qwen maintenance

@@ -16,6 +16,11 @@
   "local_qwen36_runtime": "upstream llama.cpp b10964 Windows CUDA 13.3; staged separately",
   "local_qwen36_chat_template": "qwen3.6-codex-compatible.jinja",
   "local_qwen36_codex_compatibility": "normalizes system/developer message order for Codex Responses",
+  "local_qwen36_backend": "Ollama primary with llama.cpp CUDA fallback",
+  "local_qwen36_ollama_model": "qwen3.6-35b-a3b-coding",
+  "local_qwen36_ollama_endpoint": "http://127.0.0.1:11434/v1",
+  "local_qwen36_ollama_context_window": 131072,
+  "local_qwen36_ollama_capabilities": ["tools", "thinking", "vision"],
   "local_qwen36_endpoint": "http://127.0.0.1:61991/v1",
   "local_qwen36_context_window": 262144,
   "local_qwen36_kv_cache": "q8_0",
@@ -36,6 +41,7 @@
   "local_qwen36_requires_openai_auth": false,
   "local_qwen36_guide": "docs/LOCAL-QWEN36-INTEGRATION.md",
   "local_qwen36_maintenance_guide": "docs/LOCAL-QWEN36-AI-MAINTENANCE-GUIDEBOOK.md",
+  "local_qwen36_ollama_handoff": "docs/LOCAL-QWEN36-OLLAMA-IMPLEMENTATION-HANDOFF.md",
   "source_layout": "core-docs-references",
   "deepseek_transport": "native",
   "deepseek_reference": "references/deepseek/260909",
@@ -58,6 +64,6 @@
     "ChatGPT",
     "DeepSeek native (V4 Pro, V4 Flash, and V4 Flash Vision)",
     "OpenAI Transfer (server-side Pro/Legacy switch)",
-    "Local Qwen3.6 (llama.cpp CUDA, credential-free)"
+    "Local Qwen3.6 (Ollama primary with llama.cpp CUDA fallback, credential-free)"
   ]
 }

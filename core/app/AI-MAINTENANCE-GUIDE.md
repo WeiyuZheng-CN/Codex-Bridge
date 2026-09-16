@@ -14,7 +14,8 @@ Codex desktop shortcut
           -> Codex model picker: V4 Pro / V4 Flash / V4 Flash Vision
       -> OpenAI Transfer -> shared auth.json profile -> station API
            -> Pro/Legacy selected in the station web console
-     -> Local Qwen3.6 -> loopback llama.cpp CUDA server -> isolated profile
+     -> Local Qwen3.6 -> Ollama Responses API -> isolated profile
+                         llama.cpp CUDA remains fallback
 ```
 
 The main chooser has one DeepSeek card. The native DeepSeek profile exposes
@@ -38,12 +39,12 @@ profile for rollback when a station still requires an environment key or actor
 header.
 
 Local Qwen3.6 is credential-free and is kept outside the portable app directory.
-Its stable runtime/model root is
-`%USERPROFILE%\Documents\Codex\local-qwen36`; its isolated Codex profile is
-`%USERPROFILE%\Documents\Codex\local-qwen36-codex`. The local profile uses
-`http://127.0.0.1:61991/v1`, `wire_api = "responses"`, and
-`requires_openai_auth = false`. Read `docs\LOCAL-QWEN36-INTEGRATION.md` in the
-source package for the digest, GPU flags, and rollback procedure.
+Its Ollama profile is
+`%USERPROFILE%\Documents\Codex\local-qwen36-ollama-codex` and uses Codex's
+built-in `ollama` provider at `http://127.0.0.1:11434/v1`. The verified
+llama.cpp profile remains at `%USERPROFILE%\Documents\Codex\local-qwen36-codex`
+and `http://127.0.0.1:61991/v1` as fallback. Read
+`docs\LOCAL-QWEN36-INTEGRATION.md` for both paths and rollback procedure.
 
 The current tuned defaults are `262144` context tokens, CUDA `q8_0` KV cache,
 Flash Attention enabled, and low reasoning with a 512-token budget. The full

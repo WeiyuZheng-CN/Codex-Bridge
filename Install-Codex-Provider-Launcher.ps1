@@ -13,6 +13,7 @@ param(
     [string]$ProfilesRoot = '',
     [string]$LocalQwenRoot = '',
     [string]$LocalQwenProfileRoot = '',
+    [string]$LocalQwenOllamaProfileRoot = '',
     [string]$DesktopPath = '',
     [Alias('TransferProModel', 'TransferLegacyModel')]
     [ValidatePattern('^[A-Za-z0-9][A-Za-z0-9._-]*$')]
@@ -233,8 +234,14 @@ function Assert-LocalQwenRuntime {
 
 function Assert-LocalQwenPackageAssets {
     foreach ($requiredPath in @(
+        (Join-Path $appRoot 'Start-Codex-Local-Qwen36-Ollama.ps1'),
         (Join-Path $appRoot 'Start-Qwen36-GPU-Coding.ps1'),
-        (Join-Path $appRoot 'qwen3.6-codex-compatible.jinja')
+        (Join-Path $appRoot 'Start-Qwen36-Ollama.ps1'),
+        (Join-Path $appRoot 'Stop-Qwen36-Ollama.ps1'),
+        (Join-Path $appRoot 'Test-Qwen36-Ollama.ps1'),
+        (Join-Path $appRoot 'qwen3.6-codex-compatible.jinja'),
+        (Join-Path $catalogRoot 'local-qwen36-ollama-models.json'),
+        (Join-Path $templateRoot 'local-qwen36-ollama-config.template.toml')
     )) {
         if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
             throw "Local Qwen3.6 package asset is missing: $requiredPath"
@@ -665,6 +672,9 @@ if ([string]::IsNullOrWhiteSpace($LocalQwenRoot)) {
 if ([string]::IsNullOrWhiteSpace($LocalQwenProfileRoot)) {
     $LocalQwenProfileRoot = Join-Path $ProfilesRoot 'local-qwen36-codex'
 }
+if ([string]::IsNullOrWhiteSpace($LocalQwenOllamaProfileRoot)) {
+    $LocalQwenOllamaProfileRoot = Join-Path $ProfilesRoot 'local-qwen36-ollama-codex'
+}
 if ([string]::IsNullOrWhiteSpace($DesktopPath)) {
     $DesktopPath = [Environment]::GetFolderPath('Desktop')
 }
@@ -681,6 +691,9 @@ $LocalQwenRoot = Assert-SafeDirectoryTarget `
 $LocalQwenProfileRoot = Assert-SafeDirectoryTarget `
     -Path $LocalQwenProfileRoot `
     -Label 'LocalQwenProfileRoot'
+$LocalQwenOllamaProfileRoot = Assert-SafeDirectoryTarget `
+    -Path $LocalQwenOllamaProfileRoot `
+    -Label 'LocalQwenOllamaProfileRoot'
 if (-not [string]::IsNullOrWhiteSpace($DesktopPath)) {
     $DesktopPath = Assert-SafeDirectoryTarget `
         -Path $DesktopPath `
@@ -702,12 +715,17 @@ if (Test-PathInside -Candidate $LocalQwenRoot -Parent $packageRoot) {
 if (Test-PathInside -Candidate $LocalQwenProfileRoot -Parent $packageRoot) {
     throw 'LocalQwenProfileRoot must be outside the extracted portable package.'
 }
+if (Test-PathInside -Candidate $LocalQwenOllamaProfileRoot -Parent $packageRoot) {
+    throw 'LocalQwenOllamaProfileRoot must be outside the extracted portable package.'
+}
 
 $transferRoot = Join-Path $ProfilesRoot 'ai-pixel-relay'
 $deepSeekRoot = Join-Path $ProfilesRoot 'deepseek-native-test'
 $deepSeekCatalogPath = Join-Path $deepSeekRoot 'codex-home\models.json'
 $localQwenConfigPath = Join-Path $LocalQwenProfileRoot 'codex-home\config.toml'
 $localQwenCatalogPath = Join-Path $LocalQwenProfileRoot 'codex-home\models.json'
+$localQwenOllamaConfigPath = Join-Path $LocalQwenOllamaProfileRoot 'codex-home\config.toml'
+$localQwenOllamaCatalogPath = Join-Path $LocalQwenOllamaProfileRoot 'codex-home\models.json'
 $friendlyLinkPath = Join-Path $ProfilesRoot 'Codex-Launcher'
 $needsDeepSeek = $selectedModes -contains 'DeepSeek'
 $needsTransfer = $selectedModes -contains 'Transfer'
@@ -741,6 +759,7 @@ if ($ValidateOnly) {
         DeepSeekProfileRoot = $deepSeekRoot
         LocalQwenRoot = $LocalQwenRoot
         LocalQwenProfileRoot = $LocalQwenProfileRoot
+        LocalQwenOllamaProfileRoot = $LocalQwenOllamaProfileRoot
         CredentialFilesChecked = [bool](
             $DeepSeekKeyFile -or
             $TransferKeyFile
@@ -761,6 +780,7 @@ $nativeConfig = ''
 $transferConfig = ''
 $transferAuth = ''
 $localQwenConfig = ''
+$localQwenOllamaConfig = ''
 
 Write-InstallStep 'Reading only the credentials needed by the selected modes...'
 if (${needsDeepSeek}) {
@@ -808,6 +828,13 @@ if (${needsLocalQwen}) {
                 ConvertTo-JsonString $localQwenCatalogPath
             )
         }
+    $localQwenOllamaConfig = Expand-PackageTemplate `
+        -TemplatePath (Join-Path $templateRoot 'local-qwen36-ollama-config.template.toml') `
+        -Values @{
+            '__LOCAL_QWEN_OLLAMA_CATALOG_PATH_JSON__' = (
+                ConvertTo-JsonString $localQwenOllamaCatalogPath
+            )
+        }
 }
 
 $launcherSettings = [ordered]@{
@@ -824,12 +851,19 @@ $launcherSettings = [ordered]@{
     transfer_profile_root = $transferRoot
     transfer_shared_profile_root = $transferRoot
     transfer_profile_strategy = 'shared-auth-json'
+    local_qwen36_backend = 'ollama'
     local_qwen36_root = $LocalQwenRoot
     local_qwen36_profile_root = $LocalQwenProfileRoot
+    local_qwen36_ollama_profile_root = $LocalQwenOllamaProfileRoot
     local_qwen36_model = 'qwen3.6-35b-a3b-coding'
-    local_qwen36_endpoint = 'http://127.0.0.1:61991/v1'
-    local_qwen36_port = 61991
-    local_qwen36_context_window = 262144
+    local_qwen36_ollama_model = 'qwen3.6-35b-a3b-coding'
+    local_qwen36_endpoint = 'http://127.0.0.1:11434/v1'
+    local_qwen36_port = 11434
+    local_qwen36_context_window = 131072
+    local_qwen36_ollama_context_window = 131072
+    local_qwen36_fallback_endpoint = 'http://127.0.0.1:61991/v1'
+    local_qwen36_fallback_port = 61991
+    local_qwen36_fallback_context_window = 262144
     local_qwen36_kv_cache = 'q8_0'
     local_qwen36_gpu_kv = $true
     local_qwen36_flash_attention = $true
@@ -963,7 +997,7 @@ try {
         $localQwenBackupRoot = Join-Path $LocalQwenProfileRoot (
             'backups\portable-installer\' + $installStamp
         )
-        $localQwenLauncherSource = [IO.File]::ReadAllText(
+    $localQwenLauncherSource = [IO.File]::ReadAllText(
             (Join-Path $appRoot 'Start-Qwen36-GPU-Coding.ps1'),
             [Text.Encoding]::UTF8
         )
@@ -973,6 +1007,23 @@ try {
             -BackupRoot $localQwenBackupRoot `
             -BackupName 'Start-Qwen36-GPU-Coding.ps1'
         $null = $profileChanges.Add($change)
+
+        foreach ($assetName in @(
+            'Start-Qwen36-Ollama.ps1',
+            'Stop-Qwen36-Ollama.ps1',
+            'Test-Qwen36-Ollama.ps1'
+        )) {
+            $assetSource = [IO.File]::ReadAllText(
+                (Join-Path $appRoot $assetName),
+                [Text.Encoding]::UTF8
+            )
+            $change = Install-TextFileAtomically `
+                -TargetPath (Join-Path $LocalQwenRoot ('launcher\' + $assetName)) `
+                -Content $assetSource `
+                -BackupRoot $localQwenBackupRoot `
+                -BackupName $assetName
+            $null = $profileChanges.Add($change)
+        }
 
         $localQwenTemplateSource = [IO.File]::ReadAllText(
             (Join-Path $appRoot 'qwen3.6-codex-compatible.jinja'),
@@ -1002,6 +1053,24 @@ try {
             -BackupRoot $localQwenBackupRoot `
             -BackupName 'models.json'
         $null = $profileChanges.Add($change)
+
+        $change = Install-TextFileAtomically `
+            -TargetPath $localQwenOllamaConfigPath `
+            -Content $localQwenOllamaConfig `
+            -BackupRoot (Join-Path $LocalQwenOllamaProfileRoot ('backups\portable-installer\' + $installStamp)) `
+            -BackupName 'config.toml'
+        $null = $profileChanges.Add($change)
+
+        $localQwenOllamaCatalog = [IO.File]::ReadAllText(
+            (Join-Path $catalogRoot 'local-qwen36-ollama-models.json'),
+            [Text.Encoding]::UTF8
+        )
+        $change = Install-TextFileAtomically `
+            -TargetPath $localQwenOllamaCatalogPath `
+            -Content $localQwenOllamaCatalog `
+            -BackupRoot (Join-Path $LocalQwenOllamaProfileRoot ('backups\portable-installer\' + $installStamp)) `
+            -BackupName 'models.json'
+        $null = $profileChanges.Add($change)
     }
 
     Write-InstallStep 'Running the installed launcher checks...'
@@ -1017,7 +1086,9 @@ try {
         (Join-Path $transferRoot 'codex-home\config.toml'),
         (Join-Path $transferRoot 'codex-home\auth.json'),
         $localQwenConfigPath,
-        $localQwenCatalogPath
+        $localQwenCatalogPath,
+        $localQwenOllamaConfigPath,
+        $localQwenOllamaCatalogPath
     )) {
         Protect-SensitiveFile -Path $sensitivePath
     }
@@ -1061,6 +1132,7 @@ finally {
     $transferConfig = $null
     $transferAuth = $null
     $localQwenConfig = $null
+    $localQwenOllamaConfig = $null
 }
 
 $friendlyResult = $null
@@ -1119,12 +1191,19 @@ $manifest = [ordered]@{
     transfer_profile_root = $transferRoot
     transfer_shared_profile_root = $transferRoot
     transfer_profile_strategy = 'shared-auth-json'
+    local_qwen36_backend = 'ollama'
     local_qwen36_root = $LocalQwenRoot
     local_qwen36_profile_root = $LocalQwenProfileRoot
+    local_qwen36_ollama_profile_root = $LocalQwenOllamaProfileRoot
     local_qwen36_model = 'qwen3.6-35b-a3b-coding'
-    local_qwen36_endpoint = 'http://127.0.0.1:61991/v1'
-    local_qwen36_port = 61991
-    local_qwen36_context_window = 262144
+    local_qwen36_ollama_model = 'qwen3.6-35b-a3b-coding'
+    local_qwen36_endpoint = 'http://127.0.0.1:11434/v1'
+    local_qwen36_port = 11434
+    local_qwen36_context_window = 131072
+    local_qwen36_ollama_context_window = 131072
+    local_qwen36_fallback_endpoint = 'http://127.0.0.1:61991/v1'
+    local_qwen36_fallback_port = 61991
+    local_qwen36_fallback_context_window = 262144
     local_qwen36_kv_cache = 'q8_0'
     local_qwen36_gpu_kv = $true
     local_qwen36_flash_attention = $true

@@ -1,14 +1,16 @@
 # Local Qwen3.6 integration guide
 
 This document describes the local Codex route added for the verified
-Qwen3.6 35B-A3B Q4_K_M installation on the RTX 5060 Laptop GPU.
+Qwen3.6 35B-A3B Q4_K_M installation on the RTX 5060 Laptop GPU. The primary
+route uses Ollama because it has passed structured tool-call and image tests;
+the previously verified llama.cpp route remains available as a fallback.
 
 For the complete AI-facing maintenance contract, including exact hashes,
 resource tuning, troubleshooting, upgrade, rollback, privacy, and acceptance
 checks, read LOCAL-QWEN36-AI-MAINTENANCE-GUIDEBOOK.md in this directory.
 
 This public source document contains the integration design only. The GGUF
-weight file and the llama.cpp/CUDA runtime are deliberately not bundled.
+weight file and the Ollama/llama.cpp runtimes are deliberately not bundled.
 Prepare them from the official sources in README.md in a target-specific
 directory, then replace the path placeholders below. Do not put those assets
 inside the Git source tree.
@@ -22,14 +24,19 @@ Codex chooser
     |
     +-- Local Qwen3.6 card
             |
-            +-- isolated Codex profile
-            |     Documents\Codex\local-qwen36-codex\codex-home
+            +-- isolated Ollama Codex profile
+            |     Documents\Codex\local-qwen36-ollama-codex\codex-home
             |
             +-- loopback Responses API
-                  http://127.0.0.1:61991/v1
+                  http://127.0.0.1:11434/v1
                   |
-                  +-- llama-server.exe, llama.cpp b10964 CUDA 13.3
-                  +-- Qwen3.6 35B-A3B Q4_K_M model
+                  +-- Ollama qwen3.6-35b-a3b-coding
+                  +-- structured tools and image input
+            |
+            +-- fallback Codex profile
+                  Documents\Codex\local-qwen36-codex\codex-home
+                  http://127.0.0.1:61991/v1
+                  llama.cpp b10964 CUDA 13.3
 ```
 
 The normal `%USERPROFILE%\.codex` profile is not used by this card and is not
@@ -143,8 +150,30 @@ the Responses API used by the Codex profile.
 1. Quit Codex completely if it is open.
 2. Open the `Codex` shortcut or run the installed chooser.
 3. Select `Local Qwen3.6`.
-4. The provider launcher starts the local server if it is not already healthy,
-   then opens Codex with the isolated profile.
+4. The provider launcher starts Ollama if it is not already healthy, then opens
+   Codex with the isolated Ollama profile. Ollama uses the existing local model
+   inventory and does not download a second copy for the alias.
+
+The Ollama server can also be started directly:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+  '<Documents>\Codex\local-qwen36\launcher\Start-Qwen36-Ollama.ps1'
+```
+
+Run the Ollama candidate test after startup:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+  '<Documents>\Codex\local-qwen36\launcher\Test-Qwen36-Ollama.ps1'
+```
+
+Stop only an Ollama process started and recorded by the Local Qwen launcher:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+  '<Documents>\Codex\local-qwen36\launcher\Stop-Qwen36-Ollama.ps1'
+```
 
 The server can also be started directly:
 
@@ -165,7 +194,19 @@ diagnostics; keep them private when sharing a bug report.
 
 ## Profile contract
 
-The generated local profile must contain the equivalent of:
+The primary generated profile must contain the equivalent of:
+
+```toml
+model = "qwen3.6-35b-a3b-coding"
+model_provider = "ollama"
+model_reasoning_effort = "low"
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+model_context_window = 131072
+model_catalog_json = "<Documents>/Codex/local-qwen36-ollama-codex/codex-home/models.json"
+```
+
+The fallback profile retains the following configuration:
 
 ```toml
 model = "qwen3.6-35b-a3b-coding"
@@ -189,7 +230,24 @@ another change.
 
 ## Checks after an update
 
-Run these checks in order:
+For the primary Ollama route, run these checks in order:
+
+```powershell
+Invoke-RestMethod -Uri 'http://127.0.0.1:11434/api/version'
+Invoke-RestMethod -Uri 'http://127.0.0.1:11434/api/tags' |
+  ConvertTo-Json -Depth 10
+Invoke-RestMethod -Uri 'http://127.0.0.1:11434/v1/models' |
+  ConvertTo-Json -Depth 10
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+  '<Documents>\Codex\local-qwen36\launcher\Test-Qwen36-Ollama.ps1'
+```
+
+The Ollama test requires a completed text Responses result, a structured
+`function_call`, a completed `function_call_output` continuation, and a
+completed `input_image` Responses result.
+
+For the llama.cpp fallback, run these checks:
 
 ```powershell
 $root = '<Documents>\Codex\local-qwen36'
@@ -213,29 +271,31 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
   -ValidateOnly
 ```
 
-Expected local results include `Status = OK`, the model alias, the loopback
-base URL, and `RequiresOpenAIAuth = false`. A `SKIPPED` result for an unrelated
-provider is normal.
+Expected primary results include `Status = OK`, `Backend = ollama`, the model
+alias, endpoint 11434, image support, and an isolated profile. The fallback
+launcher should continue to report its own 61991 endpoint when run directly. A
+`SKIPPED` result for an unrelated provider is normal.
 
 ## Safe upgrade and rollback
 
-Never replace the live runtime while `llama-server.exe` is running.
+Never replace the live runtime or Ollama model while its server is running.
 
 1. Record the current model hash, runtime version, launcher arguments, health
    result, and a short coding response.
 2. Download or extract a candidate runtime into a new versioned directory.
 3. Test it on a second port with the same model and conservative flags.
-4. Promote it only after CUDA discovery, health, response, and memory checks
-   pass.
+4. Promote it only after provider discovery, health, response, tool, image,
+   and memory checks pass.
 5. Keep the previous runtime directory until the new one has survived normal
    use.
 
-The promotion made for this installation was a copy-and-hash-verify operation;
-the original Ollama blob remains available as a fallback. The prior launcher
-package is also retained in its installer backup directory. To roll back the
-Codex integration, restore the timestamped backup of
-`Start-Codex-Chooser.ps1`, remove the Local Qwen profile entry from
-`launcher.settings.json`, and leave the model/runtime root untouched.
+The current promotion keeps both providers. The Ollama alias reuses the
+existing Ollama blob; the original standalone model/runtime root remains the
+llama.cpp fallback. The prior launcher package and profile files are retained
+in timestamped installer backups. To roll back the Codex integration, restore
+the timestamped backup of `Start-Codex-Chooser.ps1` and
+`launcher.settings.json`, select the fallback profile, and leave both model
+copies untouched.
 
 ## Resource troubleshooting
 

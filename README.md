@@ -25,7 +25,7 @@ docs/LOCAL-QWEN36-AI-MAINTENANCE-GUIDEBOOK.md；维护该模式的 agent 应完�
 
 本仓库保存的是围绕 Local Qwen3.6 构建的产品：Codex 接入、四入口启动器、
 配置模板、模型目录、GPU 调优规则和 AI 维护手册。为避免仓库过大以及重复
-分发模型，Qwen3.6 GGUF 权重、CUDA/llama.cpp 运行时、缓存和本机 profile
+分发模型，Qwen3.6 GGUF 权重、Ollama/llama.cpp 运行时、缓存和本机 profile
 不会上传到 GitHub。
 
 目标电脑需要从官方来源单独准备模型和运行时。安装 agent 会检查它们是否已
@@ -57,15 +57,17 @@ Install-*.ps1 / .cmd     安装与验证入口
 或更早的 release 恢复。
 
 可选模式包括 ChatGPT、DeepSeek（V4 Pro、V4 Flash、V4 Flash Vision）、
-OpenAI Transfer 和 Local Qwen3.6。Local Qwen3.6 使用本机 loopback 上的
-llama.cpp Responses API，并且不需要 OpenAI 登录；模型与 CUDA 启动器位于
-`%USERPROFILE%\Documents\Codex\local-qwen36`，profile 位于同级的
-`local-qwen36-codex`。Transfer 使用一份 `auth.json` 配置；
+OpenAI Transfer 和 Local Qwen3.6。Local Qwen3.6 默认使用本机 loopback 上的
+Ollama Responses API，并且不需要 OpenAI 登录；模型由 Ollama 管理，启动脚本
+位于 `%USERPROFILE%\Documents\Codex\local-qwen36`，隔离 profile 位于同级的
+`local-qwen36-ollama-codex`。原 llama.cpp CUDA 路径保留在 `61991` 作为回退。
+Transfer 使用一份 `auth.json` 配置；
 `OpenAI-transfer-Pro` 与 `OpenAI-transfer` 由中转站网页对同一个 Key 做服务端切换。
-Local Qwen3.6 currently uses the full 262K context with CUDA `q8_0` KV cache,
-Flash Attention, and low reasoning with a 512-token budget. The Codex model
-catalog exposes the complete local reasoning scale: minimal, low, medium,
-high, xhigh, and max. Low remains the default.
+Local Qwen3.6 Ollama currently starts with a 131072-token context to leave
+memory headroom, and exposes tools, thinking, and the verified image input path.
+The llama.cpp fallback retains the full 262K context with CUDA `q8_0` KV cache
+and Flash Attention. The Codex model catalog exposes minimal, low, medium, high,
+xhigh, and max reasoning; low remains the default.
 The local server also uses a bundled Codex-compatible Jinja template to handle
 Codex multi-message requests.
 The installer deploys that template and its Local Qwen server launcher beside
