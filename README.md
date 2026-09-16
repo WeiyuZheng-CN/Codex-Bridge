@@ -70,6 +70,10 @@ its independent full 262K CUDA route. The Codex model catalog exposes minimal,
 low, medium, high, xhigh, and max reasoning; max is the default and lower levels
 remain selectable for faster replies. The Ollama route has no launcher-imposed
 output-token cap; an individual Codex request may still choose its own budget.
+When configured with an external Ollama API-key file, the isolated profile also
+has `ollama_web_search` MCP tools for web search and page fetch; Qwen inference
+remains local and the key is never bundled. MCP calls use Codex approval, so
+the user can approve each network search.
 The local server also uses a bundled Codex-compatible Jinja template to handle
 Codex multi-message requests.
 The installer deploys that template and its Local Qwen server launcher beside

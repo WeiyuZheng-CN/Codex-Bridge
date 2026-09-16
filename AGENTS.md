@@ -25,7 +25,7 @@ the package author's machine.
 | `ChatGPT` | ChatGPT | Existing Codex login; no new key |
 | `DeepSeek` | V4 Pro, V4 Flash, or V4 Flash Vision; select inside Codex | DeepSeek API key |
 | `Transfer` | OpenAI Transfer; switch Pro/Legacy at the station website | One current station key |
-| `LocalQwen36` | Local Qwen3.6 35B-A3B Q4_K_M through Ollama, with llama.cpp CUDA fallback | Installed Ollama/model; no key |
+| `LocalQwen36` | Local Qwen3.6 35B-A3B Q4_K_M through Ollama, with llama.cpp CUDA fallback | Installed Ollama/model; optional key only for web search |
 
 `ChatGPT` is included automatically. One DeepSeek key serves the native profile
 and its Pro, Flash, and Flash Vision model choices. The current station's
@@ -33,7 +33,7 @@ and its Pro, Flash, and Flash Vision model choices. The current station's
 the web console performs the server-side switch for the same key. The old
 `TransferPro` and `TransferLegacy` names remain accepted as installer aliases.
 
-`LocalQwen36` is credential-free. It requires Ollama with the verified
+`LocalQwen36` local inference is credential-free. It requires Ollama with the verified
 `qwen3.6:35b-a3b-coding` model and creates the isolated
 `Documents\Codex\local-qwen36-ollama-codex` profile. It never rewrites the
 normal `%USERPROFILE%\.codex` profile. The primary context is the full 262144
@@ -41,7 +41,10 @@ tokens with one request slot, Q8 KV cache, tools, thinking, and image input;
 the separately staged `Documents\Codex\local-qwen36` llama.cpp CUDA route
 remains an independent 262144-token fallback. The catalog exposes minimal,
 low, medium, high, xhigh, and max reasoning, with max as the default, and the
-Ollama launcher imposes no fixed output-token cap.
+Ollama launcher imposes no fixed output-token cap. Optional web search and page
+fetch are provided through a separate `ollama_web_search` MCP server when the
+user supplies an external Ollama API-key file; Qwen inference remains local,
+and MCP calls use Codex approval.
 
 Prefer private one-line files outside the extracted package. Pass file paths
 to the installer; never read or print their contents. If files do not exist,

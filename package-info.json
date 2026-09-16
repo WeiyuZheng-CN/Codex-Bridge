@@ -20,7 +20,9 @@
   "local_qwen36_ollama_model": "qwen3.6-35b-a3b-coding",
   "local_qwen36_ollama_endpoint": "http://127.0.0.1:11434/v1",
   "local_qwen36_ollama_context_window": 262144,
-  "local_qwen36_ollama_capabilities": ["tools", "thinking", "vision"],
+  "local_qwen36_ollama_capabilities": ["tools", "thinking", "vision", "web_search", "web_fetch"],
+  "local_qwen36_ollama_web_search": "Official Ollama web_search/web_fetch MCP bridge; Qwen inference remains local and the API key is external.",
+  "local_qwen36_ollama_web_search_mcp": "mcp==1.26.0 with ollama==0.6.2",
   "local_qwen36_endpoint": "http://127.0.0.1:61991/v1",
   "local_qwen36_context_window": 262144,
   "local_qwen36_kv_cache": "q8_0",
@@ -66,6 +68,6 @@
     "ChatGPT",
     "DeepSeek native (V4 Pro, V4 Flash, and V4 Flash Vision)",
     "OpenAI Transfer (server-side Pro/Legacy switch)",
-    "Local Qwen3.6 (Ollama primary with llama.cpp CUDA fallback, credential-free)"
+    "Local Qwen3.6 (Ollama primary with llama.cpp CUDA fallback; local inference credential-free, optional Ollama key for web search)"
   ]
 }

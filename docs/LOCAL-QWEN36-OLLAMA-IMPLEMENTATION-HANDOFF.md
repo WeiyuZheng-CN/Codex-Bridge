@@ -76,6 +76,11 @@ smaller context, it reports that service as stale and refuses to continue
 silently. The stop script only stops the recorded Ollama process and its child
 runner.
 
+Optional web search is implemented separately through an `ollama_web_search`
+MCP server. It reads a private external key file and calls Ollama's hosted
+`web_search`/`web_fetch` API only after Codex approval. It does not change the
+local Qwen runner or enable Ollama cloud model inference.
+
 ## Installed deployment
 
 The official installer could not atomically move the existing installed app

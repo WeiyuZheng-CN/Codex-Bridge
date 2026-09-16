@@ -31,6 +31,8 @@ $requiredFiles = @(
     'core\app\Start-Qwen36-Ollama.ps1',
     'core\app\Stop-Qwen36-Ollama.ps1',
     'core\app\Test-Qwen36-Ollama.ps1',
+    'core\app\ollama-web-search-mcp.py',
+    'core\app\Setup-Ollama-Web-Search.ps1',
     'core\app\qwen3.6-codex-compatible.jinja',
     'core\app\Install-Desktop-Shortcuts.ps1',
     'core\app\Codex.ico',
@@ -40,6 +42,7 @@ $requiredFiles = @(
     'core\templates\native-config.template.toml',
     'core\templates\transfer-shared-config.template.toml',
     'core\templates\local-qwen36-ollama-config.template.toml',
+    'core\templates\local-qwen36-ollama-web-search-config.template.toml',
     'core\catalogs\native-models.json',
     'core\catalogs\local-qwen36-models.json',
     'core\catalogs\local-qwen36-ollama-models.json',
@@ -339,6 +342,14 @@ $templateChecks = [ordered]@{
     )
     'core\templates\local-qwen36-config.template.toml' = @(
         '__LOCAL_QWEN_CATALOG_PATH_JSON__'
+    )
+    'core\templates\local-qwen36-ollama-config.template.toml' = @(
+        '__LOCAL_QWEN_OLLAMA_CATALOG_PATH_JSON__'
+    )
+    'core\templates\local-qwen36-ollama-web-search-config.template.toml' = @(
+        '__LOCAL_QWEN_OLLAMA_PYTHON_JSON__',
+        '__LOCAL_QWEN_OLLAMA_MCP_SCRIPT_JSON__',
+        '__LOCAL_QWEN_OLLAMA_API_KEY_FILE_JSON__'
     )
 }
 foreach ($entry in $templateChecks.GetEnumerator()) {

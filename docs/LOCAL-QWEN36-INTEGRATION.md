@@ -40,7 +40,9 @@ Codex chooser
 ```
 
 The normal `%USERPROFILE%\.codex` profile is not used by this card and is not
-rewritten. No API key or OpenAI login is required. The server binds to
+rewritten. No API key or OpenAI login is required for local inference. The
+optional web-search MCP path uses a private Ollama API key only for search and
+fetch. The server binds to
 `127.0.0.1` only.
 
 The stable runtime root is:
@@ -155,7 +157,9 @@ the Responses API used by the Codex profile.
    Codex with the isolated Ollama profile. Ollama uses the existing local model
    inventory and does not download a second copy for the alias. The launcher
    requests the full 262144-token context, one parallel request, Q8 KV cache,
-   and local-only operation. It persists these settings for future Ollama
+   and local-only model operation. Optional web search is provided by the
+   separate `ollama_web_search` MCP server and uses the private Ollama API key
+   only for search/fetch requests. It persists these settings for future Ollama
    starts and checks `/api/ps` after a short warm-up. If an already-running
    external Ollama service still reports a smaller context, the launcher stops
    with an explicit restart message instead of silently opening Codex with the
@@ -167,6 +171,29 @@ The Ollama server can also be started directly:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
   '<Documents>\Codex\local-qwen36\launcher\Start-Qwen36-Ollama.ps1'
 ```
+
+### Optional web search
+
+Local Qwen can use approved web search without moving model inference to the
+cloud. The package provides an `ollama_web_search` MCP server exposing
+`web_search` and `web_fetch`. It reads an Ollama API key from a private
+one-line file outside the package and calls only Ollama's hosted search/fetch
+API. Keep `OLLAMA_NO_CLOUD=1`; Qwen inference remains local.
+
+Install with the private key path:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+  '<SourceRoot>\Install-Codex-Provider-Launcher.ps1' `
+  -Modes LocalQwen36 `
+  -OllamaApiKeyFile 'E:\D\API Key\Key\Ollama.txt' `
+  -NonInteractive
+```
+
+The key value is never placed in `config.toml`, `launcher.settings.json`, the
+source package, or Git. Codex may ask for approval before the MCP network call.
+The built-in Ollama native web-search route remains disabled because it
+conflicts with the local-only model setting.
 
 Run the Ollama candidate test after startup:
 

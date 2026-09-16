@@ -45,7 +45,7 @@ Default destinations are:
 The agent may choose different safe paths. The normal `%USERPROFILE%\.codex`
 profile is used only by the ChatGPT launcher and is not rewritten.
 
-Local Qwen3.6 is credential-free. Its primary isolated profile uses Codex's
+Local Qwen3.6 local inference is credential-free. Its primary isolated profile uses Codex's
 built-in Ollama provider and the local Responses API at
 `http://127.0.0.1:11434/v1`. The Q4_K_M model is about 22 GiB and is managed by
 Ollama outside the portable launcher package. The verified llama.cpp profile
@@ -58,6 +58,9 @@ input. The fallback runtime independently uses the full `262144`-token context,
 CUDA `q8_0` KV cache, and Flash Attention; the MoE experts remain in system RAM.
 The Ollama catalog exposes minimal, low, medium, high, xhigh, and max reasoning,
 with max as the default. The launcher adds no fixed output-token cap.
+Optional web search is a separate MCP server named `ollama_web_search`; it uses
+the external Ollama API only for search/fetch, while the Qwen model remains on
+the local Ollama runner.
 The model weights and CUDA runtime are external assets and are deliberately
 not bundled in this public source package. The target machine must stage them
 outside the repository before selecting Local Qwen3.6.

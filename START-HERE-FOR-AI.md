@@ -17,7 +17,7 @@ autonomously; do not make the user edit scripts or configuration by hand.
 
 The supported choices are ChatGPT, one native DeepSeek entry with V4 Pro,
 V4 Flash, and V4 Flash Vision available in Codex's model picker, one OpenAI
-Transfer entry, and one credential-free Local Qwen3.6 entry. Install only the
+Transfer entry, and one credential-free-for-local-inference Local Qwen3.6 entry. Install only the
 requested modes.
 ChatGPT is the base mode. Do not create a second DeepSeek selector: start the
 shared native profile and let Codex's own model picker select Pro, Flash, or
@@ -32,6 +32,10 @@ launcher-imposed output-token cap. The verified llama.cpp CUDA server on
 262144-token context with CUDA q8 KV cache and Flash Attention. The model
 catalog exposes minimal, low, medium, high, xhigh, and max reasoning; max is
 the default while lower levels remain available for speed.
+When an external Ollama API-key file is supplied, configure the optional
+`ollama_web_search` MCP server for web search and page fetch. Keep the key
+outside the package and approve network tool calls in Codex. Qwen inference
+continues to run locally.
 The public source package does not contain the Qwen3.6 weight file or the
 llama.cpp/CUDA runtime. Those assets must be staged separately from the
 official sources described in README.md and the Local Qwen maintenance

@@ -1,0 +1,8 @@
+[mcp_servers.ollama_web_search]
+command = __LOCAL_QWEN_OLLAMA_PYTHON_JSON__
+args = [__LOCAL_QWEN_OLLAMA_MCP_SCRIPT_JSON__]
+startup_timeout_sec = 30
+tool_timeout_sec = 120
+
+[mcp_servers.ollama_web_search.env]
+OLLAMA_API_KEY_FILE = __LOCAL_QWEN_OLLAMA_API_KEY_FILE_JSON__

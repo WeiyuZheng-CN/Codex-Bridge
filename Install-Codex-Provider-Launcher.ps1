@@ -14,6 +14,9 @@ param(
     [string]$LocalQwenRoot = '',
     [string]$LocalQwenProfileRoot = '',
     [string]$LocalQwenOllamaProfileRoot = '',
+    [Alias('OllamaWebSearchKeyFile')]
+    [string]$OllamaApiKeyFile = '',
+    [string]$OllamaWebSearchPythonPath = '',
     [string]$DesktopPath = '',
     [Alias('TransferProModel', 'TransferLegacyModel')]
     [ValidatePattern('^[A-Za-z0-9][A-Za-z0-9._-]*$')]
@@ -127,6 +130,9 @@ function Resolve-InstallModes {
     if ($TransferKeyFile) {
         $inferred.Add('Transfer')
     }
+    if ($OllamaApiKeyFile) {
+        $inferred.Add('LocalQwen36')
+    }
     if ($inferred.Count -gt 0) {
         $withChatGPT = New-Object System.Collections.Generic.List[string]
         $withChatGPT.Add('ChatGPT')
@@ -239,14 +245,55 @@ function Assert-LocalQwenPackageAssets {
         (Join-Path $appRoot 'Start-Qwen36-Ollama.ps1'),
         (Join-Path $appRoot 'Stop-Qwen36-Ollama.ps1'),
         (Join-Path $appRoot 'Test-Qwen36-Ollama.ps1'),
+        (Join-Path $appRoot 'Setup-Ollama-Web-Search.ps1'),
+        (Join-Path $appRoot 'ollama-web-search-mcp.py'),
         (Join-Path $appRoot 'qwen3.6-codex-compatible.jinja'),
         (Join-Path $catalogRoot 'local-qwen36-ollama-models.json'),
-        (Join-Path $templateRoot 'local-qwen36-ollama-config.template.toml')
+        (Join-Path $templateRoot 'local-qwen36-ollama-config.template.toml'),
+        (Join-Path $templateRoot 'local-qwen36-ollama-web-search-config.template.toml')
     )) {
         if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
             throw "Local Qwen3.6 package asset is missing: $requiredPath"
         }
     }
+}
+
+function Resolve-OllamaWebSearchPython {
+    param(
+        [string]$PreferredPath,
+        [Parameter(Mandatory = $true)][string]$LocalRoot
+    )
+
+    $venvPython = Join-Path $LocalRoot 'web-search-env\Scripts\python.exe'
+    if (Test-Path -LiteralPath $venvPython -PathType Leaf) {
+        return [IO.Path]::GetFullPath($venvPython)
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($PreferredPath)) {
+        $candidate = ConvertTo-NormalizedPath $PreferredPath
+        if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) {
+            throw "Ollama web-search Python executable was not found: $candidate"
+        }
+        return $candidate
+    }
+
+    foreach ($candidate in @(
+        (Join-Path $env:LOCALAPPDATA 'Programs\Python\Python311\python.exe'),
+        (Join-Path $env:ProgramFiles 'Python311\python.exe')
+    )) {
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+            return [IO.Path]::GetFullPath($candidate)
+        }
+    }
+
+    $command = Get-Command python.exe -ErrorAction SilentlyContinue
+    if ($command -and $command.Source) {
+        return [IO.Path]::GetFullPath($command.Source)
+    }
+    throw (
+        'Ollama web search requires Python 3.11 or newer. Run ' +
+        'Setup-Ollama-Web-Search.ps1 first, or provide -OllamaWebSearchPythonPath.'
+    )
 }
 
 function Resolve-CodexDesktopExecutable {
@@ -730,6 +777,30 @@ $friendlyLinkPath = Join-Path $ProfilesRoot 'Codex-Launcher'
 $needsDeepSeek = $selectedModes -contains 'DeepSeek'
 $needsTransfer = $selectedModes -contains 'Transfer'
 $needsLocalQwen = $selectedModes -contains 'LocalQwen36'
+$ollamaWebSearchEnabled = -not [string]::IsNullOrWhiteSpace($OllamaApiKeyFile)
+$ollamaApiKeyPath = ''
+$ollamaWebSearchPython = ''
+$ollamaWebSearchScriptPath = Join-Path $InstallRoot 'ollama-web-search-mcp.py'
+
+if ($ollamaWebSearchEnabled -and -not $needsLocalQwen) {
+    throw 'OllamaApiKeyFile requires the LocalQwen36 installation mode.'
+}
+
+if ($ollamaWebSearchEnabled) {
+    $ollamaApiKeyPath = ConvertTo-NormalizedPath $OllamaApiKeyFile
+    $null = Get-SecretFromFile -Path $ollamaApiKeyPath -Label 'Ollama API key'
+    if (-not $ValidateOnly) {
+        & (Join-Path $appRoot 'Setup-Ollama-Web-Search.ps1') `
+            -EnvironmentRoot (Join-Path $LocalQwenRoot 'web-search-env') `
+            -PythonPath $OllamaWebSearchPythonPath
+        if ($LASTEXITCODE -ne 0) {
+            throw "Ollama web-search environment setup failed (exit $LASTEXITCODE)."
+        }
+    }
+    $ollamaWebSearchPython = Resolve-OllamaWebSearchPython `
+        -PreferredPath $OllamaWebSearchPythonPath `
+        -LocalRoot $LocalQwenRoot
+}
 
 if ($needsLocalQwen) {
     Assert-LocalQwenRuntime -Root $LocalQwenRoot
@@ -762,8 +833,11 @@ if ($ValidateOnly) {
         LocalQwenOllamaProfileRoot = $LocalQwenOllamaProfileRoot
         CredentialFilesChecked = [bool](
             $DeepSeekKeyFile -or
-            $TransferKeyFile
+            $TransferKeyFile -or
+            $OllamaApiKeyFile
         )
+        OllamaWebSearch = $ollamaWebSearchEnabled
+        OllamaWebSearchPython = $ollamaWebSearchPython
         WritesPerformed = $false
     }
     return
@@ -781,6 +855,7 @@ $transferConfig = ''
 $transferAuth = ''
 $localQwenConfig = ''
 $localQwenOllamaConfig = ''
+$localQwenOllamaWebSearchConfig = ''
 
 Write-InstallStep 'Reading only the credentials needed by the selected modes...'
 if (${needsDeepSeek}) {
@@ -835,6 +910,24 @@ if (${needsLocalQwen}) {
                 ConvertTo-JsonString $localQwenOllamaCatalogPath
             )
         }
+    if ($ollamaWebSearchEnabled) {
+        $localQwenOllamaWebSearchConfig = Expand-PackageTemplate `
+            -TemplatePath (Join-Path $templateRoot 'local-qwen36-ollama-web-search-config.template.toml') `
+            -Values @{
+                '__LOCAL_QWEN_OLLAMA_PYTHON_JSON__' = (
+                    ConvertTo-JsonString $ollamaWebSearchPython
+                )
+                '__LOCAL_QWEN_OLLAMA_MCP_SCRIPT_JSON__' = (
+                    ConvertTo-JsonString $ollamaWebSearchScriptPath
+                )
+                '__LOCAL_QWEN_OLLAMA_API_KEY_FILE_JSON__' = (
+                    ConvertTo-JsonString $ollamaApiKeyPath
+                )
+            }
+        $localQwenOllamaConfig = $localQwenOllamaConfig.TrimEnd() +
+            [Environment]::NewLine + [Environment]::NewLine +
+            $localQwenOllamaWebSearchConfig.Trim()
+    }
 }
 
 $launcherSettings = [ordered]@{
@@ -857,6 +950,9 @@ $launcherSettings = [ordered]@{
     local_qwen36_ollama_profile_root = $LocalQwenOllamaProfileRoot
     local_qwen36_model = 'qwen3.6-35b-a3b-coding'
     local_qwen36_ollama_model = 'qwen3.6-35b-a3b-coding'
+    local_qwen36_ollama_web_search = $ollamaWebSearchEnabled
+    local_qwen36_ollama_api_key_file = if ($ollamaWebSearchEnabled) { $ollamaApiKeyPath } else { $null }
+    local_qwen36_ollama_web_search_python = if ($ollamaWebSearchEnabled) { $ollamaWebSearchPython } else { $null }
     local_qwen36_endpoint = 'http://127.0.0.1:11434/v1'
     local_qwen36_port = 11434
     local_qwen36_context_window = 262144
@@ -1013,7 +1109,9 @@ try {
         foreach ($assetName in @(
             'Start-Qwen36-Ollama.ps1',
             'Stop-Qwen36-Ollama.ps1',
-            'Test-Qwen36-Ollama.ps1'
+            'Test-Qwen36-Ollama.ps1',
+            'Setup-Ollama-Web-Search.ps1',
+            'ollama-web-search-mcp.py'
         )) {
             $assetSource = [IO.File]::ReadAllText(
                 (Join-Path $appRoot $assetName),
@@ -1135,6 +1233,7 @@ finally {
     $transferAuth = $null
     $localQwenConfig = $null
     $localQwenOllamaConfig = $null
+    $localQwenOllamaWebSearchConfig = $null
 }
 
 $friendlyResult = $null
@@ -1199,6 +1298,9 @@ $manifest = [ordered]@{
     local_qwen36_ollama_profile_root = $LocalQwenOllamaProfileRoot
     local_qwen36_model = 'qwen3.6-35b-a3b-coding'
     local_qwen36_ollama_model = 'qwen3.6-35b-a3b-coding'
+    local_qwen36_ollama_web_search = $ollamaWebSearchEnabled
+    local_qwen36_ollama_api_key_file = if ($ollamaWebSearchEnabled) { $ollamaApiKeyPath } else { $null }
+    local_qwen36_ollama_web_search_python = if ($ollamaWebSearchEnabled) { $ollamaWebSearchPython } else { $null }
     local_qwen36_endpoint = 'http://127.0.0.1:11434/v1'
     local_qwen36_port = 11434
     local_qwen36_context_window = 262144

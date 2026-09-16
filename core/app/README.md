@@ -38,6 +38,8 @@ fallback llama.cpp profile independently retains its CUDA q8_0/Flash Attention
 configuration.
 The model picker exposes minimal, low, medium, high, xhigh, and max reasoning
 effort; low remains the default.
+An optional `ollama_web_search` MCP server can add approved web search and page
+fetch without moving Qwen inference off the local GPU.
 
 The detailed Local Qwen3.6 AI maintenance guide is installed in
 docs\LOCAL-QWEN36-AI-MAINTENANCE-GUIDEBOOK.md. Read it for exact hashes,

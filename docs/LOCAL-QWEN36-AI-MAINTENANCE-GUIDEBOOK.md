@@ -68,8 +68,9 @@ has returned a structured Responses `function_call` and accepted a Responses
 `input_image` request in direct tests. The catalog exposes minimal, low,
 medium, high, xhigh, and max reasoning, with max as the default. The launcher
 does not impose a fixed output-token cap; a client may still send a request-
-level cap. These raw and CLI tests do not replace the final attended desktop
-GUI test.
+level cap. If configured, the separate `ollama_web_search` MCP server provides
+approved web search and page fetch while Qwen inference remains local. These
+raw and CLI tests do not replace the final attended desktop GUI test.
 
 The original acquisition workspace was:
 

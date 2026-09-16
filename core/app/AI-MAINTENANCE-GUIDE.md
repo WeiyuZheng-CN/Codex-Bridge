@@ -56,6 +56,10 @@ model catalog exposes minimal, low, medium, high, xhigh, and max reasoning;
 higher levels may use more tokens and take longer.
 The server also uses the bundled Codex-compatible Jinja template to normalize
 Codex system/developer message order before Qwen inference.
+Optional web search uses the installed `ollama_web_search` MCP server and the
+private Ollama API-key file outside this package. Keep `OLLAMA_NO_CLOUD=1` so
+model inference stays local; only approved MCP search/fetch calls use the hosted
+Ollama web API.
 The external local-qwen36 launcher must contain
 qwen3.6-codex-compatible.jinja and pass it with chat-template-file.
 
