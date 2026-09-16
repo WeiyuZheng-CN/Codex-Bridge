@@ -59,6 +59,7 @@ $codexHome = Join-Path $profileRoot 'codex-home'
 $codexConfigPath = Join-Path $codexHome 'config.toml'
 $electronData = Join-Path $profileRoot 'electron-data'
 $serverLauncher = Join-Path $localQwenRoot 'launcher\Start-Qwen36-GPU-Coding.ps1'
+$chatTemplate = Join-Path $localQwenRoot 'launcher\qwen3.6-codex-compatible.jinja'
 $serverExecutable = Join-Path $localQwenRoot 'runtime\llama-server.exe'
 $modelPath = Join-Path $localQwenRoot 'model\qwen3.6-35b-a3b-coding-q4_k_m.gguf'
 $port = 61991
@@ -132,6 +133,7 @@ function Resolve-CodexDesktopExecutable {
 function Assert-LocalQwenRuntime {
     foreach ($requiredPath in @(
         $serverLauncher,
+        $chatTemplate,
         $serverExecutable,
         $modelPath
     )) {
@@ -293,10 +295,21 @@ function Test-LocalServerHealth {
 function Start-LocalQwenServer {
     $listener = Get-LocalServerListener
     if ($listener) {
-        $null = Assert-LocalServerOwnership -Listener $listener
-        if (Test-LocalServerHealth) {
+        $owner = Assert-LocalServerOwnership -Listener $listener
+        if (
+            (Test-LocalServerHealth) -and
+            $owner.CommandLine -like "*--chat-template-file*$chatTemplate*"
+        ) {
             return $listener.OwningProcess
         }
+        if ($owner.CommandLine -notlike "*--chat-template-file*$chatTemplate*") {
+            Write-Verbose (
+                'Restarting the owned Local Qwen server to apply the ' +
+                'Codex-compatible chat template.'
+            )
+        }
+        Stop-Process -Id $listener.OwningProcess -Force
+        Start-Sleep -Seconds 2
     }
 
     $arguments = @(
@@ -348,6 +361,7 @@ try {
             ReasoningLevels = @($profile.ReasoningLevels)
             ContextWindow = $profile.ContextWindow
             LocalQwenRoot = $localQwenRoot
+            ChatTemplate = $chatTemplate
             ModelPath = $modelPath
             ModelBytes = $expectedModelBytes
             Runtime = $serverExecutable

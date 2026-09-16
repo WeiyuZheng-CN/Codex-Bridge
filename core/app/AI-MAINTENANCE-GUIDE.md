@@ -52,6 +52,10 @@ VRAM and should not be combined with another heavy GPU workload. The Local
 Qwen3.6 model catalog exposes minimal, low, medium, high, xhigh, and max
 reasoning effort. Low remains the profile default; higher levels are
 request-time controls and may use more tokens and take longer.
+The server also uses the bundled Codex-compatible Jinja template to normalize
+Codex system/developer message order before Qwen inference.
+The external local-qwen36 launcher must contain
+qwen3.6-codex-compatible.jinja and pass it with chat-template-file.
 
 For current station behavior, read:
 

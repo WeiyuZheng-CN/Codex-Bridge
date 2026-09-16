@@ -89,6 +89,7 @@ The model is larger than the laptop's 8 GB VRAM. The working launcher uses:
 --reasoning-effort low
 --reasoning-budget 512
 --reasoning-format deepseek
+--chat-template-file qwen3.6-codex-compatible.jinja
 --cache-type-k q8_0
 --cache-type-v q8_0
 --load-mode none
@@ -98,6 +99,14 @@ The Codex model catalog exposes the complete local reasoning scale:
 minimal, low, medium, high, xhigh, and max. The profile default remains low.
 These are request-time reasoning controls and do not change the quantized
 model weights. Higher levels may use more tokens and take longer.
+
+The Qwen model's embedded peg-native template rejects Codex requests when
+system or developer messages arrive after another message. The bundled
+qwen3.6-codex-compatible.jinja template normalizes those messages at the
+server boundary while retaining the Qwen reasoning markers. It is deployed
+beside the server launcher and is required by the stable start script.
+The source package contains both assets under core/app; the installer copies
+them to the external local-qwen36 launcher directory with dated backups.
 
 `--cpu-moe` keeps the large MoE expert weights in system RAM while eligible
 shared/attention layers and the quantized KV cache use CUDA. “GPU mode”

@@ -857,6 +857,7 @@ The current stable launcher is configured with:
 --reasoning-effort low
 --reasoning-budget 512
 --reasoning-format deepseek
+--chat-template-file qwen3.6-codex-compatible.jinja
 --batch-size 512
 --ubatch-size 256
 --cache-type-k q8_0
@@ -875,6 +876,9 @@ The important interpretations are:
 * load mode none is the measured speed default but is aggressive with 31.5 GB
   system RAM. Mmap is the fallback when Windows begins paging.
 * no-mmproj is intentional because this is a text coding route.
+* the compatible Jinja template is required for Codex's multi-system-message
+  request format; without it the native template can return HTTP 500 before
+  inference starts.
 
 At maximum context, observed GPU use was about 6.8 to 7.1 GiB of 8.15 GiB.
 Observed generation samples were about 31 to 35 tokens per second, with
@@ -1041,6 +1045,25 @@ Compare one helper request with Think and one without it before changing the
 production launcher. A staged reasoning-off or lower-budget test is allowed,
 but do not change production behavior for one malformed prompt.
 
+#### Codex remains connecting or returns a server error
+
+Check the Qwen stderr log. The old embedded peg-native template can report
+Jinja Exception: System message must be at the beginning when Codex sends
+multiple system or developer messages in its Responses request. This happens
+before token generation, so GPU utilization may remain low.
+
+The known-good launcher must pass
+qwen3.6-codex-compatible.jinja with chat-template-file. Confirm the server
+command line contains that option and that the template file exists beside the
+launcher. The current llama.cpp build may also report that Responses tool
+types such as namespace, web_search, or custom were skipped. That is a
+separate tool-compatibility limitation; first confirm that a plain Responses
+request returns a final answer.
+
+If the old server is healthy but lacks the compatible template argument, the
+Local Qwen launcher should restart only that owned server. Do not kill an
+unrelated process that happens to use another port.
+
 #### Codex authentication or wrong-profile failure
 
 Check the isolated config.toml, models.json, installed launcher.settings.json,
@@ -1162,3 +1185,10 @@ second, and NVIDIA telemetry of 7485 MiB used out of 8151 MiB at 69 degrees
 Celsius. The difference from the earlier 34.27 tokens per second sample is
 normal benchmark variation; compare runs only under the same thermal and
 workload conditions.
+
+On 2026-09-16, a production Responses regression carrying separate
+system/developer messages plus function and web-search tool descriptions
+completed successfully with a final answer of `2`. The server log contained
+no Jinja ordering exception; the remaining tool-type skip warning is recorded
+as a known llama.cpp adapter limitation. The packaged test then returned valid
+Python, 35.91 tokens per second, and 6971 MiB of 8151 MiB GPU memory used.

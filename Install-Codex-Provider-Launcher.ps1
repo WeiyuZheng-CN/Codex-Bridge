@@ -215,9 +215,8 @@ function Assert-LocalQwenRuntime {
     )
 
     $runtimePath = Join-Path $Root 'runtime\llama-server.exe'
-    $launcherPath = Join-Path $Root 'launcher\Start-Qwen36-GPU-Coding.ps1'
     $modelPath = Join-Path $Root 'model\qwen3.6-35b-a3b-coding-q4_k_m.gguf'
-    foreach ($requiredPath in @($runtimePath, $launcherPath, $modelPath)) {
+    foreach ($requiredPath in @($runtimePath, $modelPath)) {
         if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
             throw "Local Qwen3.6 runtime file is missing: $requiredPath"
         }
@@ -229,6 +228,17 @@ function Assert-LocalQwenRuntime {
             "Local Qwen3.6 model size is $actualBytes bytes; " +
             "expected $expectedBytes bytes."
         )
+    }
+}
+
+function Assert-LocalQwenPackageAssets {
+    foreach ($requiredPath in @(
+        (Join-Path $appRoot 'Start-Qwen36-GPU-Coding.ps1'),
+        (Join-Path $appRoot 'qwen3.6-codex-compatible.jinja')
+    )) {
+        if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
+            throw "Local Qwen3.6 package asset is missing: $requiredPath"
+        }
     }
 }
 
@@ -705,6 +715,7 @@ $needsLocalQwen = $selectedModes -contains 'LocalQwen36'
 
 if ($needsLocalQwen) {
     Assert-LocalQwenRuntime -Root $LocalQwenRoot
+    Assert-LocalQwenPackageAssets
 }
 
 if ($ValidateOnly) {
@@ -823,6 +834,7 @@ $launcherSettings = [ordered]@{
     local_qwen36_gpu_kv = $true
     local_qwen36_flash_attention = $true
     local_qwen36_reasoning_budget = 512
+    local_qwen36_chat_template = 'qwen3.6-codex-compatible.jinja'
     local_qwen36_reasoning_levels = @(
         'minimal',
         'low',
@@ -951,6 +963,28 @@ try {
         $localQwenBackupRoot = Join-Path $LocalQwenProfileRoot (
             'backups\portable-installer\' + $installStamp
         )
+        $localQwenLauncherSource = [IO.File]::ReadAllText(
+            (Join-Path $appRoot 'Start-Qwen36-GPU-Coding.ps1'),
+            [Text.Encoding]::UTF8
+        )
+        $change = Install-TextFileAtomically `
+            -TargetPath (Join-Path $LocalQwenRoot 'launcher\Start-Qwen36-GPU-Coding.ps1') `
+            -Content $localQwenLauncherSource `
+            -BackupRoot $localQwenBackupRoot `
+            -BackupName 'Start-Qwen36-GPU-Coding.ps1'
+        $null = $profileChanges.Add($change)
+
+        $localQwenTemplateSource = [IO.File]::ReadAllText(
+            (Join-Path $appRoot 'qwen3.6-codex-compatible.jinja'),
+            [Text.Encoding]::UTF8
+        )
+        $change = Install-TextFileAtomically `
+            -TargetPath (Join-Path $LocalQwenRoot 'launcher\qwen3.6-codex-compatible.jinja') `
+            -Content $localQwenTemplateSource `
+            -BackupRoot $localQwenBackupRoot `
+            -BackupName 'qwen3.6-codex-compatible.jinja'
+        $null = $profileChanges.Add($change)
+
         $change = Install-TextFileAtomically `
             -TargetPath $localQwenConfigPath `
             -Content $localQwenConfig `
@@ -1095,6 +1129,7 @@ $manifest = [ordered]@{
     local_qwen36_gpu_kv = $true
     local_qwen36_flash_attention = $true
     local_qwen36_reasoning_budget = 512
+    local_qwen36_chat_template = 'qwen3.6-codex-compatible.jinja'
     local_qwen36_reasoning_levels = @(
         'minimal',
         'low',

@@ -25,6 +25,8 @@ $requiredFiles = @(
     'core\app\Start-Codex-DeepSeek.ps1',
     'core\app\Start-Codex-OpenAI-Transfer.ps1',
     'core\app\Start-Codex-Local-Qwen36.ps1',
+    'core\app\Start-Qwen36-GPU-Coding.ps1',
+    'core\app\qwen3.6-codex-compatible.jinja',
     'core\app\Install-Desktop-Shortcuts.ps1',
     'core\app\Codex.ico',
     'core\app\README.md',
@@ -108,7 +110,7 @@ foreach ($file in $packageFiles) {
 
 $textExtensions = @(
     '.ps1', '.psm1', '.cmd', '.md', '.json', '.toml', '.yml', '.yaml',
-    '.py', '.txt'
+    '.py', '.txt', '.jinja'
 )
 $secretPatterns = [ordered]@{
     'API-key-shaped value' = '(?i)\bsk-[A-Za-z0-9_-]{16,}\b'

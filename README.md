@@ -66,6 +66,10 @@ Local Qwen3.6 currently uses the full 262K context with CUDA `q8_0` KV cache,
 Flash Attention, and low reasoning with a 512-token budget. The Codex model
 catalog exposes the complete local reasoning scale: minimal, low, medium,
 high, xhigh, and max. Low remains the default.
+The local server also uses a bundled Codex-compatible Jinja template to handle
+Codex multi-message requests.
+The installer deploys that template and its Local Qwen server launcher beside
+the externally staged model/runtime, so the fix is retained after reinstall.
 未安装的模式仍保留在漂亮界面中，
 但会淡化显示；以后可以让 agent 补装。
 

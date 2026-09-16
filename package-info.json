@@ -14,6 +14,8 @@
   "local_qwen36_quantization": "Q4_K_M",
   "local_qwen36_assets_bundled": false,
   "local_qwen36_runtime": "upstream llama.cpp b10964 Windows CUDA 13.3; staged separately",
+  "local_qwen36_chat_template": "qwen3.6-codex-compatible.jinja",
+  "local_qwen36_codex_compatibility": "normalizes system/developer message order for Codex Responses",
   "local_qwen36_endpoint": "http://127.0.0.1:61991/v1",
   "local_qwen36_context_window": 262144,
   "local_qwen36_kv_cache": "q8_0",

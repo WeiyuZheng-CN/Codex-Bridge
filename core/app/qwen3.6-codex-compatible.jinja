@@ -1,0 +1,81 @@
+{%- macro render_content(content) -%}
+    {%- if content is string -%}
+        {{- content -}}
+    {%- elif content is iterable and content is not mapping -%}
+        {%- for item in content -%}
+            {%- if item.text is defined -%}
+                {{- item.text -}}
+            {%- elif item.content is defined -%}
+                {{- render_content(item.content) -}}
+            {%- elif item.input_text is defined -%}
+                {{- item.input_text -}}
+            {%- endif -%}
+        {%- endfor -%}
+    {%- elif content is not none and content is defined -%}
+        {{- content -}}
+    {%- endif -%}
+{%- endmacro -%}
+{%- set ns = namespace(system_parts=[]) -%}
+{%- for message in messages -%}
+    {%- if message.role == "system" or message.role == "developer" -%}
+        {%- set ns.system_parts = ns.system_parts + [render_content(message.content)] -%}
+    {%- endif -%}
+{%- endfor -%}
+{%- if ns.system_parts|length > 0 -%}
+    {{- "<|im_start|>system\n" -}}
+    {{- ns.system_parts|join("\n\n") -}}
+    {{- "<|im_end|>\n" -}}
+{%- endif -%}
+{%- for message in messages -%}
+    {%- if message.role == "user" -%}
+        {{- "<|im_start|>user\n" -}}
+        {{- render_content(message.content) -}}
+        {{- "<|im_end|>\n" -}}
+    {%- elif message.role == "assistant" -%}
+        {%- set content = render_content(message.content) -%}
+        {{- "<|im_start|>assistant\n" -}}
+        {%- if message.reasoning_content is defined and message.reasoning_content is string -%}
+            {{- "<think>\n" + message.reasoning_content + "\n</think>\n" -}}
+        {%- endif -%}
+        {{- content -}}
+        {%- if message.tool_calls is defined and message.tool_calls and message.tool_calls is iterable and message.tool_calls is not mapping -%}
+            {%- for tool_call in message.tool_calls -%}
+                {%- if tool_call.function is defined -%}
+                    {%- set tool_call = tool_call.function -%}
+                {%- endif -%}
+                {%- if loop.first -%}
+                    {%- if content|trim -%}
+                        {{- "\n\n<tool_call>\n<function=" + tool_call.name + ">\n" -}}
+                    {%- else -%}
+                        {{- "<tool_call>\n<function=" + tool_call.name + ">\n" -}}
+                    {%- endif -%}
+                {%- else -%}
+                    {{- "\n<tool_call>\n<function=" + tool_call.name + ">\n" -}}
+                {%- endif -%}
+                {%- if tool_call.arguments is defined -%}
+                    {%- for argument_name, argument_value in tool_call.arguments|items -%}
+                        {{- "<parameter=" + argument_name + ">\n" -}}
+                        {{- argument_value|string -}}
+                        {{- "\n</parameter>\n" -}}
+                    {%- endfor -%}
+                {%- endif -%}
+                {{- "</function>\n</tool_call>" -}}
+            {%- endfor -%}
+        {%- endif -%}
+        {%- if not loop.last -%}
+            {{- "<|im_end|>\n" -}}
+        {%- endif -%}
+    {%- elif message.role == "tool" -%}
+        {{- "<|im_start|>user\n<tool_response>\n" -}}
+        {{- render_content(message.content) -}}
+        {{- "\n</tool_response><|im_end|>\n" -}}
+    {%- endif -%}
+{%- endfor -%}
+{%- if add_generation_prompt -%}
+    {{- "<|im_start|>assistant\n" -}}
+    {%- if enable_thinking is defined and enable_thinking is false -%}
+        {{- "<think>\n\n</think>\n" -}}
+    {%- else -%}
+        {{- "<think>\n" -}}
+    {%- endif -%}
+{%- endif -%}
