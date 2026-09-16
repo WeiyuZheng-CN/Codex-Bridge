@@ -25,10 +25,13 @@ Flash Vision.
 Local Qwen3.6 starts the installed Ollama server on 127.0.0.1:11434 and uses
 the built-in Codex `ollama` provider with an isolated profile. It does not
 change `%USERPROFILE%\.codex`. The tested Ollama path supports structured
-Responses function calls and image input. The verified llama.cpp CUDA server
-on 127.0.0.1:61991 remains the fallback and retains the full 262144-token
-context with CUDA q8 KV cache, Flash Attention, and low reasoning with a
-512-token budget.
+Responses function calls and image input. It requests the full 262144-token
+context, keeps one request slot, uses Q8 KV cache, enables thinking, and has no
+launcher-imposed output-token cap. The verified llama.cpp CUDA server on
+127.0.0.1:61991 remains an independent fallback and retains the full
+262144-token context with CUDA q8 KV cache and Flash Attention. The model
+catalog exposes minimal, low, medium, high, xhigh, and max reasoning; max is
+the default while lower levels remain available for speed.
 The public source package does not contain the Qwen3.6 weight file or the
 llama.cpp/CUDA runtime. Those assets must be staged separately from the
 official sources described in README.md and the Local Qwen maintenance

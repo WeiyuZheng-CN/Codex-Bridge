@@ -1,9 +1,9 @@
 model = "qwen3.6-35b-a3b-coding"
 model_provider = "ollama"
-model_reasoning_effort = "low"
+model_reasoning_effort = "max"
 approval_policy = "on-request"
 sandbox_mode = "workspace-write"
-model_context_window = 131072
+model_context_window = 262144
 model_catalog_json = __LOCAL_QWEN_OLLAMA_CATALOG_PATH_JSON__
 
 [features]

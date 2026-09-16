@@ -7,6 +7,7 @@ $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $endpoint = 'http://127.0.0.1:11434'
 $sourceModel = 'qwen3.6:35b-a3b-coding'
 $model = 'qwen3.6-35b-a3b-coding'
+$requestedContextLength = 262144
 $outJson = Join-Path $scriptRoot 'qwen36-ollama-verification.json'
 $outText = Join-Path $scriptRoot 'qwen36-ollama-verification.txt'
 
@@ -35,7 +36,7 @@ $textBody = @{
     model = $model
     instructions = 'Return the exact answer 2 and nothing else.'
     input = 'Reply with 2 only.'
-    max_output_tokens = 256
+    reasoning_effort = 'max'
     stream = $false
     store = $false
 } | ConvertTo-Json -Depth 12
@@ -48,6 +49,21 @@ $textAnswer = @(
 ) -join ''
 if ($textResult.status -ne 'completed' -or [string]::IsNullOrWhiteSpace($textAnswer)) {
     throw 'Ollama Responses text test did not return a final message.'
+}
+$running = Invoke-RestMethod -Uri "$endpoint/api/ps" -TimeoutSec 20
+$runningModel = @(
+    $running.models |
+        Where-Object {
+            [string]$_.name -eq $model -or
+            [string]$_.name -eq ($model + ':latest')
+        }
+) | Select-Object -First 1
+$activeContextLength = 0
+if (-not $runningModel -or -not [int]::TryParse([string]$runningModel.context_length, [ref]$activeContextLength)) {
+    throw 'Ollama did not report the loaded Local Qwen context through /api/ps.'
+}
+if ($activeContextLength -lt $requestedContextLength) {
+    throw "Ollama loaded only $activeContextLength tokens; expected $requestedContextLength."
 }
 
 $toolBody = @{
@@ -65,7 +81,8 @@ $toolBody = @{
         }
     })
     tool_choice = 'required'
-    max_output_tokens = 1024
+    reasoning_effort = 'max'
+    max_output_tokens = 2048
     stream = $false
     store = $false
 } | ConvertTo-Json -Depth 20
@@ -88,7 +105,8 @@ $followBody = @{
         call_id = $functionCall.call_id
         output = 'probe result: ok'
     })
-    max_output_tokens = 512
+    reasoning_effort = 'max'
+    max_output_tokens = 2048
     stream = $false
     store = $false
 } | ConvertTo-Json -Depth 15
@@ -114,7 +132,8 @@ $imageBody = @{
             @{ type = 'input_image'; image_url = "data:image/png;base64,$blackPngBase64" }
         )
     })
-    max_output_tokens = 256
+    reasoning_effort = 'max'
+    max_output_tokens = 1024
     stream = $false
     store = $false
 } | ConvertTo-Json -Depth 20
@@ -135,6 +154,8 @@ $summary = [ordered]@{
     ollama_version = [string]$health.version
     endpoint = $endpoint
     model = $model
+    requested_context_length = $requestedContextLength
+    active_context_length = $activeContextLength
     model_ids = $modelIds
     text_status = $textResult.status
     text_answer = $textAnswer
@@ -151,6 +172,7 @@ $summary | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $outJson -Encodin
 @(
     "Ollama version: $($health.version)"
     "Model: $model"
+    "Context: $activeContextLength / $requestedContextLength tokens"
     "Text Responses: $($textResult.status)"
     "Structured function call: $($functionCall.name) $arguments"
     "Tool follow-up: $($followResult.status)"

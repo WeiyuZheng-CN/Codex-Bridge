@@ -63,11 +63,13 @@ Ollama Responses API，并且不需要 OpenAI 登录；模型由 Ollama 管理�
 `local-qwen36-ollama-codex`。原 llama.cpp CUDA 路径保留在 `61991` 作为回退。
 Transfer 使用一份 `auth.json` 配置；
 `OpenAI-transfer-Pro` 与 `OpenAI-transfer` 由中转站网页对同一个 Key 做服务端切换。
-Local Qwen3.6 Ollama currently starts with a 131072-token context to leave
-memory headroom, and exposes tools, thinking, and the verified image input path.
-The llama.cpp fallback retains the full 262K context with CUDA `q8_0` KV cache
-and Flash Attention. The Codex model catalog exposes minimal, low, medium, high,
-xhigh, and max reasoning; low remains the default.
+Local Qwen3.6 Ollama starts with the full 262144-token context, Q8 KV cache,
+and one request slot so the RTX 5060 can use its memory efficiently. It exposes
+tools, thinking, and the verified image input path. The llama.cpp fallback keeps
+its independent full 262K CUDA route. The Codex model catalog exposes minimal,
+low, medium, high, xhigh, and max reasoning; max is the default and lower levels
+remain selectable for faster replies. The Ollama route has no launcher-imposed
+output-token cap; an individual Codex request may still choose its own budget.
 The local server also uses a bundled Codex-compatible Jinja template to handle
 Codex multi-message requests.
 The installer deploys that template and its Local Qwen server launcher beside

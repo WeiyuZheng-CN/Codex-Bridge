@@ -36,10 +36,12 @@ the web console performs the server-side switch for the same key. The old
 `LocalQwen36` is credential-free. It requires Ollama with the verified
 `qwen3.6:35b-a3b-coding` model and creates the isolated
 `Documents\Codex\local-qwen36-ollama-codex` profile. It never rewrites the
-normal `%USERPROFILE%\.codex` profile. The primary tested context is 131072
-tokens with tools, thinking, and image input; the separately staged
-`Documents\Codex\local-qwen36` llama.cpp CUDA route remains the 262144-token
-fallback.
+normal `%USERPROFILE%\.codex` profile. The primary context is the full 262144
+tokens with one request slot, Q8 KV cache, tools, thinking, and image input;
+the separately staged `Documents\Codex\local-qwen36` llama.cpp CUDA route
+remains an independent 262144-token fallback. The catalog exposes minimal,
+low, medium, high, xhigh, and max reasoning, with max as the default, and the
+Ollama launcher imposes no fixed output-token cap.
 
 Prefer private one-line files outside the extracted package. Pass file paths
 to the installer; never read or print their contents. If files do not exist,

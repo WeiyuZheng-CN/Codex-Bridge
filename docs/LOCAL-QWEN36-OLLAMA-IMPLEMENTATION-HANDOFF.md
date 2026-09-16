@@ -12,7 +12,9 @@ Documents\Codex\local-qwen36-ollama-codex\codex-home
 model = qwen3.6-35b-a3b-coding
 model_provider = ollama
 base endpoint = http://127.0.0.1:11434/v1
-context = 131072
+context = 262144
+default reasoning = max
+launcher output cap = none
 ```
 
 Fallback profile:
@@ -66,9 +68,13 @@ core/templates/local-qwen36-ollama-config.template.toml
 ```
 
 The Ollama launcher binds to loopback, starts `ollama serve` with one parallel
-request and a 131072-token context, verifies the source model, creates the
-hyphenated alias when needed, and records an owned PID. The stop script only
-stops the recorded Ollama process and its child runner.
+request, a 262144-token context, and Q8 KV cache, verifies the source model,
+creates the hyphenated alias when needed, and records an owned PID. It persists
+the Ollama settings for future starts and warms the model before checking
+`/api/ps`. If an external Ollama process is already serving the alias with a
+smaller context, it reports that service as stale and refuses to continue
+silently. The stop script only stops the recorded Ollama process and its child
+runner.
 
 ## Installed deployment
 
@@ -85,7 +91,7 @@ Documents\Codex\_archive\codex-bridge-ollama-pre-20260916-124604
 
 Installed chooser validation returned `Status = OK` with all four modes:
 ChatGPT, DeepSeek, Transfer, and LocalQwen36. The Ollama profile validation
-returned `Backend = ollama`, `ContextWindow = 131072`, and `ImageInput = true`.
+returned `Backend = ollama`, `ContextWindow = 262144`, and `ImageInput = true`.
 The llama.cpp fallback validation still returned its 61991 endpoint and
 262144-token context.
 

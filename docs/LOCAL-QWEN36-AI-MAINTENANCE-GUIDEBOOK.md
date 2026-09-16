@@ -2,8 +2,8 @@
 
 ## Qwen3.6 35B-A3B Coding Model on Windows + RTX 5060 Laptop GPU
 
-Guidebook version: 1.1
-Baseline date: 2026-09-15
+Guidebook version: 1.2
+Baseline date: 2026-09-16
 Maintainer audience: a future AI agent, automation process, or human operator
 
 This is the detailed operational handoff for the Local Qwen3.6 route. Read it
@@ -61,11 +61,15 @@ The previous llama.cpp CUDA route remains a deliberate fallback at
 while maintaining Ollama. The fallback still provides the tested 262144-token
 context, q8 KV cache, Flash Attention, and Codex-compatible Jinja template.
 
-The Ollama profile starts at 131072 tokens to leave memory headroom. Its model
-name is `qwen3.6-35b-a3b-coding`, an Ollama alias that reuses the installed
-`qwen3.6:35b-a3b-coding` blob. Ollama has returned a structured Responses
-`function_call` and accepted a Responses `input_image` request in direct tests.
-These raw and CLI tests do not replace the final attended desktop GUI test.
+The Ollama profile uses the full 262144-token model context, one parallel
+request, and a Q8 KV cache. Its model name is `qwen3.6-35b-a3b-coding`, an
+Ollama alias that reuses the installed `qwen3.6:35b-a3b-coding` blob. Ollama
+has returned a structured Responses `function_call` and accepted a Responses
+`input_image` request in direct tests. The catalog exposes minimal, low,
+medium, high, xhigh, and max reasoning, with max as the default. The launcher
+does not impose a fixed output-token cap; a client may still send a request-
+level cap. These raw and CLI tests do not replace the final attended desktop
+GUI test.
 
 The original acquisition workspace was:
 
@@ -132,11 +136,11 @@ The working architecture is hybrid:
 ### Known limitation
 
 Ollama's model runner uses its own context and memory policy. The primary
-profile starts at 131072 tokens and must be benchmarked separately from the
-262144-token llama.cpp fallback. Codex telemetry emits harmless warnings for
-the colon-form Ollama model name, so the product uses the local hyphenated
-Ollama alias where possible. Full desktop GUI validation after a user restart
-is still required.
+profile now requests and verifies 262144 tokens through `/api/ps`; a previously
+running external Ollama service can remain at 4096 until it is fully restarted.
+Codex telemetry emits harmless warnings for the colon-form Ollama model name,
+so the product uses the local hyphenated Ollama alias where possible. Full
+desktop GUI validation after a user restart is still required.
 
 ---
 
@@ -754,7 +758,21 @@ pass, inspect the request format and server logs before changing GPU settings.
   Flash Attention, eager model loading, and 512/256 prompt batching. The full
   context and coding request passed on the RTX 5060.
 
-### Future entries
+### 2026-09-16
+
+- Promoted the Ollama primary profile to a verified 262144-token context with
+  one parallel request, Q8 KV cache, and Flash Attention enabled. The runner
+  reported `context_length=262144`, about 6.9 GiB of 8.15 GiB VRAM during the
+  acceptance test, and about 23.2 GB system RAM in the loaded runner.
+- Set the Ollama catalog/profile default reasoning effort to `max` while
+  retaining `minimal`, `low`, `medium`, `high`, and `xhigh` as selectable
+  request-time levels. Removed the launcher-side fixed output/reasoning cap;
+  the direct Responses smoke test succeeded with omitted output tokens.
+- Revalidated text, structured tools, tool-result continuation, image input,
+  the installed chooser validator, and the isolated Codex CLI profile. The
+  llama.cpp fallback also passed health and coding verification at about
+  33.74 tokens/s after the Ollama test, then was stopped so the primary could
+  be restored.
 
 Every future maintainer should append:
 
@@ -923,17 +941,19 @@ maximum. This is useful for large repositories, but it consumes most of the
 GPU memory and nearly all system memory with the current q8 and eager-load
 settings.
 
-The user's earlier 128K choice is a sensible interactive compromise. In
-binary units, 128K is 131072:
+The user's earlier 128K choice remains a sensible interactive compromise. In
+binary units, 128K is 131072, but the installed profile now targets the model's
+full 262144-token capacity:
 
 The Codex catalog exposes minimal, low, medium, high, xhigh, and max. The
-isolated profile defaults to low. The launcher keeps low effort and a
-512-token reasoning budget by default; Codex may request another catalog level
-per conversation. Max is selectable, but its latency and token use should be
-measured for the workload.
+isolated profile defaults to max. Ollama's thinking level is controlled by the
+Codex request, and the launcher metadata uses zero to mean no fixed reasoning
+or output-token budget. Max is selectable and is the default, but its latency
+and RAM/VRAM use should be measured for the workload.
 
 * 262144 gives maximum repository and history capacity.
-* 131072 usually gives better memory headroom and interactive behavior.
+* 131072 usually gives better memory headroom and interactive behavior; use it
+  as a deliberate recovery profile, not as the advertised default.
 * 65536 or 32768 are recovery settings for heavy background workloads.
 
 When changing context, update and test the server ctx-size, the isolated

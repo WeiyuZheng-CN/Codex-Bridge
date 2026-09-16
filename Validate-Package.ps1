@@ -285,9 +285,9 @@ if (Test-Path -LiteralPath $localQwenOllamaCatalogPath -PathType Leaf) {
                     )
                 }
             }
-            if ([string]$ollamaModel[0].default_reasoning_level -ne 'low') {
+            if ([string]$ollamaModel[0].default_reasoning_level -ne 'max') {
                 $errors.Add(
-                    'Local Qwen3.6 Ollama catalog default reasoning level must be low.'
+                    'Local Qwen3.6 Ollama catalog default reasoning level must be max.'
                 )
             }
             if (@($ollamaModel[0].input_modalities) -notcontains 'image') {
@@ -295,9 +295,9 @@ if (Test-Path -LiteralPath $localQwenOllamaCatalogPath -PathType Leaf) {
                     'Local Qwen3.6 Ollama catalog must advertise image input.'
                 )
             }
-            if ([int]$ollamaModel[0].context_window -ne 131072) {
+            if ([int]$ollamaModel[0].context_window -ne 262144) {
                 $errors.Add(
-                    'Local Qwen3.6 Ollama catalog must start at a 131072-token context.'
+                    'Local Qwen3.6 Ollama catalog must use a 262144-token context.'
                 )
             }
             if ([int]$ollamaModel[0].max_context_window -gt 262144) {

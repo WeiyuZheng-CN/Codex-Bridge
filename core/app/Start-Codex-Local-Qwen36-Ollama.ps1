@@ -48,7 +48,7 @@ $catalogPath = Join-Path $codexHome 'models.json'
 $configPath = Join-Path $codexHome 'config.toml'
 $endpoint = 'http://127.0.0.1:11434'
 $model = 'qwen3.6-35b-a3b-coding'
-$contextWindow = 131072
+$contextWindow = 262144
 
 function Show-CodexMessage {
     param([string]$Message)
@@ -112,6 +112,9 @@ function Read-ProfileValues {
     if ($values.model -ne $model -or $values.model_provider -ne 'ollama') {
         throw 'Ollama profile has an unexpected model or provider.'
     }
+    if (@('minimal', 'low', 'medium', 'high', 'xhigh', 'max') -notcontains $values.model_reasoning_effort) {
+        throw 'Ollama profile has an unsupported reasoning effort.'
+    }
     return [ordered]@{
         Model = $values.model
         Provider = $values.model_provider
@@ -121,12 +124,39 @@ function Read-ProfileValues {
     }
 }
 
+function Get-OllamaActiveContext {
+    try {
+        $running = Invoke-RestMethod -Uri "$endpoint/api/ps" -TimeoutSec 15
+    }
+    catch {
+        return $null
+    }
+    $entry = @(
+        $running.models |
+            Where-Object {
+                [string]$_.name -eq $model -or
+                [string]$_.name -eq ($model + ':latest')
+            }
+    ) | Select-Object -First 1
+    if (-not $entry) { return $null }
+    $value = 0
+    if ([int]::TryParse([string]$entry.context_length, [ref]$value)) {
+        return $value
+    }
+    return $null
+}
+
 function Test-OllamaHealth {
     try {
         $version = Invoke-RestMethod -Uri "$endpoint/api/version" -TimeoutSec 5
         $tags = Invoke-RestMethod -Uri "$endpoint/api/tags" -TimeoutSec 15
         $names = @($tags.models | ForEach-Object { [string]$_.name })
-        return [bool]($version -and ($names -contains $model -or $names -contains ($model + ':latest')))
+        $activeContext = Get-OllamaActiveContext
+        return [bool](
+            $version -and
+            ($names -contains $model -or $names -contains ($model + ':latest')) -and
+            $activeContext -ge $contextWindow
+        )
     }
     catch { return $false }
 }
@@ -153,6 +183,7 @@ try {
     }
     $profile = Read-ProfileValues
     if ($ValidateOnly) {
+        $activeContext = Get-OllamaActiveContext
         [ordered]@{
             Status = 'OK'
             Backend = 'ollama'
@@ -160,6 +191,8 @@ try {
             Provider = $profile.Provider
             Endpoint = $endpoint
             ContextWindow = $profile.ContextWindow
+            ActiveContextWindow = $activeContext
+            ContextVerified = [bool]($activeContext -ge $contextWindow)
             ProfileRoot = $profileRoot
             CodexHome = $codexHome
             LocalQwenRoot = $localQwenRoot

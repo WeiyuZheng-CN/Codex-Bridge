@@ -52,10 +52,12 @@ Ollama outside the portable launcher package. The verified llama.cpp profile
 at `http://127.0.0.1:61991/v1` remains available as a fallback.
 The current model digest is
 `D372DE8E934898A59E6CCFABC3368474711384D8F1FD4D22D87A3F0A45400CDC`.
-The tested Ollama profile starts at `131072` tokens and supports tools,
-thinking, and image input. The fallback runtime uses the full `262144`-token
-context, CUDA `q8_0` KV cache, and Flash Attention; the MoE experts remain in
-system RAM.
+The tested Ollama profile uses the full `262144`-token model context, one
+parallel sequence, and a Q8 KV cache. It supports tools, thinking, and image
+input. The fallback runtime independently uses the full `262144`-token context,
+CUDA `q8_0` KV cache, and Flash Attention; the MoE experts remain in system RAM.
+The Ollama catalog exposes minimal, low, medium, high, xhigh, and max reasoning,
+with max as the default. The launcher adds no fixed output-token cap.
 The model weights and CUDA runtime are external assets and are deliberately
 not bundled in this public source package. The target machine must stage them
 outside the repository before selecting Local Qwen3.6.

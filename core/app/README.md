@@ -31,9 +31,11 @@ Ollama route supports structured tool calls and image input. The original
 llama.cpp CUDA route remains available on `127.0.0.1:61991` as a fallback. See
 `docs/LOCAL-QWEN36-INTEGRATION.md` for both paths and rollback checks.
 
-The current local profile uses the full 262K context, GPU `q8_0` KV cache,
-Flash Attention, and low reasoning with a 512-token budget. It is the maximum
-context configuration tested on this RTX 5060 Laptop GPU.
+The current local Ollama profile uses the full 262K context, one request slot,
+Q8 KV cache, thinking, and no launcher-imposed output-token cap. It is the
+maximum context configuration targeted on this RTX 5060 Laptop GPU. The
+fallback llama.cpp profile independently retains its CUDA q8_0/Flash Attention
+configuration.
 The model picker exposes minimal, low, medium, high, xhigh, and max reasoning
 effort; low remains the default.
 

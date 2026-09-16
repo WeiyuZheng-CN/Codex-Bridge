@@ -103,9 +103,10 @@ The model is larger than the laptop's 8 GB VRAM. The working launcher uses:
 ```
 
 The Codex model catalog exposes the complete local reasoning scale:
-minimal, low, medium, high, xhigh, and max. The profile default remains low.
-These are request-time reasoning controls and do not change the quantized
-model weights. Higher levels may use more tokens and take longer.
+minimal, low, medium, high, xhigh, and max. The Ollama profile defaults to max;
+the independent llama.cpp fallback retains low with its tested 512-token
+reasoning budget. These are request-time reasoning controls and do not change
+the quantized model weights. Higher levels may use more tokens and take longer.
 
 The Qwen model's embedded peg-native template rejects Codex requests when
 system or developer messages arrive after another message. The bundled
@@ -152,7 +153,13 @@ the Responses API used by the Codex profile.
 3. Select `Local Qwen3.6`.
 4. The provider launcher starts Ollama if it is not already healthy, then opens
    Codex with the isolated Ollama profile. Ollama uses the existing local model
-   inventory and does not download a second copy for the alias.
+   inventory and does not download a second copy for the alias. The launcher
+   requests the full 262144-token context, one parallel request, Q8 KV cache,
+   and local-only operation. It persists these settings for future Ollama
+   starts and checks `/api/ps` after a short warm-up. If an already-running
+   external Ollama service still reports a smaller context, the launcher stops
+   with an explicit restart message instead of silently opening Codex with the
+   old context.
 
 The Ollama server can also be started directly:
 
@@ -199,10 +206,10 @@ The primary generated profile must contain the equivalent of:
 ```toml
 model = "qwen3.6-35b-a3b-coding"
 model_provider = "ollama"
-model_reasoning_effort = "low"
+model_reasoning_effort = "max"
 approval_policy = "on-request"
 sandbox_mode = "workspace-write"
-model_context_window = 131072
+model_context_window = 262144
 model_catalog_json = "<Documents>/Codex/local-qwen36-ollama-codex/codex-home/models.json"
 ```
 

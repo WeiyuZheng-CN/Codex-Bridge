@@ -46,13 +46,14 @@ llama.cpp profile remains at `%USERPROFILE%\Documents\Codex\local-qwen36-codex`
 and `http://127.0.0.1:61991/v1` as fallback. Read
 `docs\LOCAL-QWEN36-INTEGRATION.md` for both paths and rollback procedure.
 
-The current tuned defaults are `262144` context tokens, CUDA `q8_0` KV cache,
-Flash Attention enabled, and low reasoning with a 512-token budget. The full
-context was tested on the RTX 5060 Laptop GPU; it uses most of the available
-VRAM and should not be combined with another heavy GPU workload. The Local
-Qwen3.6 model catalog exposes minimal, low, medium, high, xhigh, and max
-reasoning effort. Low remains the profile default; higher levels are
-request-time controls and may use more tokens and take longer.
+The current Ollama defaults are `262144` context tokens, one request slot,
+Q8 KV cache, Flash Attention enabled, max reasoning, and no launcher-imposed
+output-token cap. The full context was tested on the RTX 5060 Laptop GPU; it
+uses most of the available VRAM and should not be combined with another heavy
+GPU workload. The independent llama.cpp fallback keeps CUDA `q8_0`, Flash
+Attention, low reasoning, and its tested 512-token budget. The Local Qwen3.6
+model catalog exposes minimal, low, medium, high, xhigh, and max reasoning;
+higher levels may use more tokens and take longer.
 The server also uses the bundled Codex-compatible Jinja template to normalize
 Codex system/developer message order before Qwen inference.
 The external local-qwen36 launcher must contain
