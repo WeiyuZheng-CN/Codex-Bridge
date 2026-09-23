@@ -26,7 +26,7 @@ Start-Codex-Chooser.ps1
 ```
 
 `launcher.settings.json`, generated on the target computer, records the Codex
-executable, profile roots, and `enabled_modes`. Unselected cards stay visible
+executable, profile roots, credential-store path, and `enabled_modes`. Unselected cards stay visible
 and are dimmed. This makes later growth discoverable without pretending that a
 missing credential is already configured.
 
@@ -39,11 +39,21 @@ Default destinations are:
 <Documents>\Codex\ai-pixel-relay\legacy-transfer\  old compatibility profile, if retained
 <Documents>\Codex\local-qwen36\                 verified model + CUDA runtime
 <Documents>\Codex\local-qwen36-codex\          local Codex profile
+<Documents>\Codex\codex-vibe-settings\        encrypted key store
 <Documents>\Codex\Codex-Launcher                friendly app link
 ```
 
 The agent may choose different safe paths. The normal `%USERPROFILE%\.codex`
 profile is used only by the ChatGPT launcher and is not rewritten.
+
+The chooser's settings gear opens a local key manager for DeepSeek and OpenAI
+Transfer. Each saved key has a user-chosen name and an active selection. Key
+values are stored with Windows DPAPI for the current Windows user. Switching a
+key updates only the provider's authentication field; the provider's existing
+`CODEX_HOME` and Electron data directories remain unchanged, so that provider's
+dialog history and projects are shared across its saved keys. The change takes
+effect the next time that provider is launched; the settings window never
+terminates an existing Codex process.
 
 Local Qwen3.6 local inference is credential-free. Its primary isolated profile uses Codex's
 built-in Ollama provider and the local Responses API at
@@ -188,6 +198,12 @@ The current Transfer catalog includes:
 - `gpt-6-astra`
 - `gpt-6-sol`
 - `gpt-6-luna`
+
+The currently tested Transfer entries `gpt-5.6-sol`, `gpt-5.6-luna`,
+`gpt-5.6-terra`, `gpt-6-sol`, `gpt-6-luna`, and `gpt-6-astra` advertise both
+text and image input. The capability flag was confirmed with minimal real
+image requests on September 23, 2026; a future station revision should be
+retested before changing the catalog.
 
 When the Transfer launcher starts, it performs a read-only authenticated
 `GET /v1/models` and refreshes the shared `models.json` catalog. It keeps a

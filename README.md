@@ -17,6 +17,12 @@ agent 理解架构的说明。它不包含 API Key、个人登录、会话、日
    私密密钥文件路径；不要把密钥发进聊天。
 6. 安装完成后结束当前任务，完全退出 Codex，再打开桌面的 `Codex` 快捷方式。
 
+启动器右上角的设置按钮可以管理 DeepSeek 和 OpenAI Transfer 的多个 API Key。
+Key 会使用当前 Windows 用户的 DPAPI 加密保存，不会写入源码或 GitHub。
+同一个 provider 的不同 Key 共用同一份对话历史、项目和 Electron 数据；切换
+Key 后完全退出并重新启动 Codex 即可生效。设置窗口中的“Save and use next
+start”只保存选择，不会强行终止当前 Codex 会话。
+
 Local Qwen3.6 的运行、GPU 调优、故障排查、回滚和验收规则集中记录在
 docs/LOCAL-QWEN36-AI-MAINTENANCE-GUIDEBOOK.md；维护该模式的 agent 应完整
 阅读它。
@@ -63,6 +69,13 @@ Ollama Responses API，并且不需要 OpenAI 登录；模型由 Ollama 管理�
 `local-qwen36-ollama-codex`。原 llama.cpp CUDA 路径保留在 `61991` 作为回退。
 Transfer 使用一份 `auth.json` 配置；
 `OpenAI-transfer-Pro` 与 `OpenAI-transfer` 由中转站网页对同一个 Key 做服务端切换。
+当前 Transfer 模型目录包含 `gpt-6-sol`、`gpt-6-luna` 和
+`gpt-6-astra`；启动 Transfer 时会从当前 Key 的 `/v1/models` 自动刷新。
+The current tested Transfer catalog marks `gpt-5.6-sol`, `gpt-5.6-luna`,
+`gpt-5.6-terra`, `gpt-6-sol`, `gpt-6-luna`, and `gpt-6-astra` as image-capable.
+The launcher refreshes their capability metadata from the verified local
+catalog; if a future station changes capabilities, test the exact model before
+changing its `input_modalities`.
 Local Qwen3.6 Ollama starts with the full 262144-token context, Q8 KV cache,
 and one request slot so the RTX 5060 can use its memory efficiently. It exposes
 tools, thinking, and the verified image input path. The llama.cpp fallback keeps

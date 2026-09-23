@@ -50,6 +50,12 @@ Prefer private one-line files outside the extracted package. Pass file paths
 to the installer; never read or print their contents. If files do not exist,
 run the installer visibly so the user can type into its hidden prompts.
 
+After installation, the launcher settings gear can save multiple DeepSeek and
+Transfer keys. The credential store is Windows-DPAPI protected for the current
+user. Switching a saved key must reuse the existing provider profile and
+Electron data directory so that provider history and projects remain shared.
+Never print or log a key.
+
 For current Transfer station information, direct the user to
 <https://ai-pixel.online/keys> and ask them to click **使用密匙**. Use the
 official references below and `references/deepseek/260909` for the current
@@ -103,6 +109,8 @@ intentional local adaptation, not for ignoring an unknown failure.
 - If the current **使用密匙** popup returns an API Key Mode or extra actor
   header, keep it as a compatibility profile instead of silently forcing the
   shared `auth.json` shape.
+- Do not create a new history or profile directory merely because the user
+  selects a different saved key for the same provider.
 
 Everything else inside the requested local installation is adaptation work the
 agent may perform and explain.

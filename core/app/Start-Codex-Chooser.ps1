@@ -13,6 +13,7 @@ $installRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $chatGPTScript = Join-Path $installRoot 'Start-Codex-ChatGPT.ps1'
 $deepSeekScript = Join-Path $installRoot 'Start-Codex-DeepSeek.ps1'
 $openaiTransferScript = Join-Path $installRoot 'Start-Codex-OpenAI-Transfer.ps1'
+$settingsScript = Join-Path $installRoot 'Start-Codex-Settings.ps1'
 $localQwenScript = Join-Path $installRoot 'Start-Codex-Local-Qwen36-Ollama.ps1'
 $settingsPath = Join-Path $installRoot 'launcher.settings.json'
 $iconPath = Join-Path $installRoot 'Codex.ico'
@@ -225,6 +226,33 @@ function Start-ProviderScriptOutOfProcess {
     }
 }
 
+function Start-CodexSettingsWindow {
+    if (-not (Test-Path -LiteralPath $settingsScript -PathType Leaf)) {
+        throw "Codex settings script is missing: $settingsScript"
+    }
+    $quotedScriptPath = '"' + $settingsScript.Replace('"', '\"') + '"'
+    $argumentList = @(
+        '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-WindowStyle',
+        'Hidden',
+        '-File',
+        $quotedScriptPath,
+        '-InstallRoot',
+        $installRoot
+    )
+    Write-ChooserDispatchLog 'Opening Codex settings'
+    $settingsProcess = Start-Process -FilePath $powerShellExe `
+        -ArgumentList $argumentList `
+        -WorkingDirectory $installRoot `
+        -WindowStyle Hidden `
+        -PassThru
+    if (-not $settingsProcess) {
+        throw 'The Codex settings window could not be opened.'
+    }
+}
+
 function Show-AlreadyRunningMessage {
     [System.Windows.MessageBox]::Show(
         "Codex is already running.`r`n`r`nQuit Codex completely, then open the Codex shortcut again to choose a mode.",
@@ -270,6 +298,7 @@ foreach ($requiredPath in @(
     $chatGPTScript,
     $deepSeekScript,
     $openaiTransferScript,
+    $settingsScript,
     $localQwenScript,
     $iconPath,
     $powerShellExe
@@ -433,6 +462,35 @@ try {
                 </Setter.Value>
             </Setter>
         </Style>
+        <Style x:Key="SettingsButtonStyle" TargetType="{x:Type Button}">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Opacity" Value="0.52"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="8">
+                            <ContentPresenter
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Opacity" Value="0.82"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Opacity" Value="1"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Grid Margin="28,18,28,18">
@@ -445,21 +503,30 @@ try {
             <RowDefinition Height="36"/>
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0" Orientation="Horizontal" VerticalAlignment="Center">
-            <Border Width="42" Height="42" CornerRadius="13" Background="#FFFFFC" BorderBrush="#DDDAD2" BorderThickness="1">
-                <Canvas Width="42" Height="42">
-                    <Line X1="21" Y1="5" X2="21" Y2="16" Stroke="#302F2B" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
-                    <Line X1="21" Y1="26" X2="21" Y2="37" Stroke="#302F2B" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
-                    <Line X1="5" Y1="21" X2="16" Y2="21" Stroke="#302F2B" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
-                    <Line X1="26" Y1="21" X2="37" Y2="21" Stroke="#302F2B" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
-                    <Line X1="9" Y1="9" X2="17" Y2="17" Stroke="#302F2B" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
-                    <Line X1="25" Y1="25" X2="33" Y2="33" Stroke="#302F2B" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
-                    <Line X1="33" Y1="9" X2="25" Y2="17" Stroke="#302F2B" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
-                    <Line X1="17" Y1="25" X2="9" Y2="33" Stroke="#302F2B" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
-                </Canvas>
-            </Border>
-            <TextBlock Text="Start Codex" Margin="14,0,0,0" VerticalAlignment="Center" FontSize="20" FontWeight="SemiBold" Foreground="#262522"/>
-        </StackPanel>
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="46"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                <Border Width="42" Height="42" CornerRadius="13" Background="#FFFFFC" BorderBrush="#DDDAD2" BorderThickness="1">
+                    <Canvas Width="42" Height="42">
+                        <Line X1="21" Y1="5" X2="21" Y2="16" Stroke="#302F2B" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                        <Line X1="21" Y1="26" X2="21" Y2="37" Stroke="#302F2B" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                        <Line X1="5" Y1="21" X2="16" Y2="21" Stroke="#302F2B" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                        <Line X1="26" Y1="21" X2="37" Y2="21" Stroke="#302F2B" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                        <Line X1="9" Y1="9" X2="17" Y2="17" Stroke="#302F2B" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                        <Line X1="25" Y1="25" X2="33" Y2="33" Stroke="#302F2B" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                        <Line X1="33" Y1="9" X2="25" Y2="17" Stroke="#302F2B" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                        <Line X1="17" Y1="25" X2="9" Y2="33" Stroke="#302F2B" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                    </Canvas>
+                </Border>
+                <TextBlock Text="Start Codex" Margin="14,0,0,0" VerticalAlignment="Center" FontSize="20" FontWeight="SemiBold" Foreground="#262522"/>
+            </StackPanel>
+            <Button x:Name="SettingsButton" Grid.Column="1" Width="30" Height="30" HorizontalAlignment="Right" VerticalAlignment="Center" Style="{StaticResource SettingsButtonStyle}" AutomationProperties.Name="Settings">
+                <TextBlock Text="&#x2699;" FontSize="15" Foreground="#5B5850" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Button>
+        </Grid>
 
         <Border Grid.Row="1" Background="#DDDAD2"/>
 
@@ -540,12 +607,14 @@ try {
     $deepSeekButton = $window.FindName('DeepSeekButton')
     $transferButton = $window.FindName('TransferButton')
     $localQwen36Button = $window.FindName('LocalQwen36Button')
+    $settingsButton = $window.FindName('SettingsButton')
     $cancelButton = $window.FindName('CancelButton')
     $availability = Get-ModeAvailability
     $chatGPTButton.IsEnabled = [bool]$availability.ChatGPT
     $deepSeekButton.IsEnabled = [bool]$availability.DeepSeek
     $transferButton.IsEnabled = [bool]$availability.Transfer
     $localQwen36Button.IsEnabled = [bool]$availability.LocalQwen36
+    $settingsButton.IsEnabled = $true
 
     # A hashtable carries the selection across the WPF event-handler closure
     # boundary. Mutating a script-scope hashtable is reliable; rebinding a plain
@@ -572,6 +641,9 @@ try {
         $script:chooserState.Provider = 'local-qwen36'
         Write-ChooserDispatchLog 'Button clicked: local Qwen3.6 profile'
         $window.DialogResult = $true
+    }.GetNewClosure())
+    $settingsButton.Add_Click({
+        Start-CodexSettingsWindow
     }.GetNewClosure())
 
     $window.Add_PreviewKeyDown({

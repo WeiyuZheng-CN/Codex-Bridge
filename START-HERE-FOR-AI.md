@@ -40,6 +40,13 @@ The public source package does not contain the Qwen3.6 weight file or the
 llama.cpp/CUDA runtime. Those assets must be staged separately from the
 official sources described in README.md and the Local Qwen maintenance
 guidebook; never download them into the Git source tree.
+
+The launcher has a settings gear in its top-right corner. Use it to manage
+multiple saved DeepSeek and Transfer keys. The values are encrypted with
+Windows DPAPI for the current user. When a user switches keys for the same
+provider, reuse that provider's existing profile and Electron data directory
+so its conversation history and projects remain shared.
+
 The transfer station's current `auth.json mode` can route the same key through
 OpenAI-transfer-Pro or OpenAI-transfer on the web side. Start the shared
 Transfer profile and let the station setting choose the backend. Keep a

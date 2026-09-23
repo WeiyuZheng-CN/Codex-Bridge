@@ -25,6 +25,10 @@ $requiredFiles = @(
     'core\app\Start-Codex-ChatGPT.ps1',
     'core\app\Start-Codex-DeepSeek.ps1',
     'core\app\Start-Codex-OpenAI-Transfer.ps1',
+    'core\app\Start-Codex-Settings.ps1',
+    'core\app\Codex-CredentialStore.ps1',
+    'core\app\Start-Codex-Settings.ps1',
+    'core\app\Codex-CredentialStore.ps1',
     'core\app\Start-Codex-Local-Qwen36.ps1',
     'core\app\Start-Codex-Local-Qwen36-Ollama.ps1',
     'core\app\Start-Qwen36-GPU-Coding.ps1',
@@ -349,6 +353,7 @@ if (Test-Path -LiteralPath $chooserPath -PathType Leaf) {
         'DeepSeekButton',
         'TransferButton',
         'LocalQwen36Button',
+        'SettingsButton',
         'shared profile',
         'Width="700"'
     )) {

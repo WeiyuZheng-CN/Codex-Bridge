@@ -37,6 +37,10 @@ Codex profile as-is. The shared Transfer profile uses one station key in
 historical 260902 API Key Mode profile may remain in the user's existing
 profile for rollback when a station still requires an environment key or actor
 header.
+The settings gear manages multiple keys for DeepSeek and Transfer. Keys are
+stored with Windows DPAPI for the current user. A provider keeps the same
+`CODEX_HOME` and Electron data when its active key changes, so history and
+projects remain shared; the change takes effect after Codex is restarted.
 The Transfer model catalog includes the current `gpt-5.6-*` models plus
 `gpt-6-astra`, `gpt-6-sol`, and `gpt-6-luna`. The launcher refreshes it from
 the authenticated `/v1/models` endpoint at startup and never sends a chat

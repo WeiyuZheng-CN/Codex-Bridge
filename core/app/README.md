@@ -10,6 +10,10 @@ DeepSeek entry uses the official native profile. After Codex opens, its model
 picker contains V4 Pro, V4 Flash, and V4 Flash Vision. OpenAI Transfer uses one
 shared `auth.json` profile; switch between `OpenAI-transfer-Pro` and
 `OpenAI-transfer` in the transfer-station web console for the same key.
+Use the gear button in the top-right corner to save and select multiple
+DeepSeek or Transfer keys. They are encrypted for the current Windows user.
+Keys for the same provider reuse that provider's history and projects; restart
+Codex after changing the active key.
 The Transfer picker catalog currently includes `gpt-5.6-sol`, `gpt-5.6-luna`,
 `gpt-5.6-terra`, `gpt-6-astra`, `gpt-6-sol`, and `gpt-6-luna`. The launcher
 refreshes this list from the authenticated station `/v1/models` endpoint when

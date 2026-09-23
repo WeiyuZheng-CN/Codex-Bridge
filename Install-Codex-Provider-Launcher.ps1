@@ -768,6 +768,9 @@ if (Test-PathInside -Candidate $LocalQwenOllamaProfileRoot -Parent $packageRoot)
 
 $transferRoot = Join-Path $ProfilesRoot 'ai-pixel-relay'
 $transferCatalogPath = Join-Path $transferRoot 'codex-home\models.json'
+$credentialStorePath = Join-Path $ProfilesRoot (
+    'codex-vibe-settings\credentials.dpapi.json'
+)
 $deepSeekRoot = Join-Path $ProfilesRoot 'deepseek-native-test'
 $deepSeekCatalogPath = Join-Path $deepSeekRoot 'codex-home\models.json'
 $localQwenConfigPath = Join-Path $LocalQwenProfileRoot 'codex-home\config.toml'
@@ -948,6 +951,7 @@ $launcherSettings = [ordered]@{
     transfer_profile_root = $transferRoot
     transfer_shared_profile_root = $transferRoot
     transfer_profile_strategy = 'shared-auth-json'
+    credential_store_path = $credentialStorePath
     local_qwen36_backend = 'ollama'
     local_qwen36_root = $LocalQwenRoot
     local_qwen36_profile_root = $LocalQwenProfileRoot
@@ -1201,6 +1205,7 @@ try {
         (Join-Path $transferRoot 'codex-home\config.toml'),
         (Join-Path $transferRoot 'codex-home\auth.json'),
         $transferCatalogPath,
+        $credentialStorePath,
         $localQwenConfigPath,
         $localQwenCatalogPath,
         $localQwenOllamaConfigPath,
@@ -1308,6 +1313,7 @@ $manifest = [ordered]@{
     transfer_profile_root = $transferRoot
     transfer_shared_profile_root = $transferRoot
     transfer_profile_strategy = 'shared-auth-json'
+    credential_store_path = $credentialStorePath
     transfer_models = @(
         'gpt-5.6-sol',
         'gpt-5.6-luna',

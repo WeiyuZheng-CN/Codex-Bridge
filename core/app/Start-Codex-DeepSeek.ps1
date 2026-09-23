@@ -14,6 +14,10 @@ $ErrorActionPreference = 'Stop'
 
 $installRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $settingsPath = Join-Path $installRoot 'launcher.settings.json'
+$credentialStoreScript = Join-Path $installRoot 'Codex-CredentialStore.ps1'
+if (Test-Path -LiteralPath $credentialStoreScript -PathType Leaf) {
+    . $credentialStoreScript
+}
 $logDirectory = Join-Path $installRoot 'logs'
 
 $launcherSettings = $null
@@ -246,6 +250,14 @@ try {
         if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
             throw "Required DeepSeek native file is missing: $requiredPath"
         }
+    }
+
+    if (-not $ValidateOnly) {
+        Sync-CodexActiveCredential `
+            -Provider 'DeepSeek' `
+            -LauncherSettings $launcherSettings `
+            -InstallRoot $installRoot `
+            -TargetPath $codexConfigPath | Out-Null
     }
 
     $profile = Get-DeepSeekProfileState

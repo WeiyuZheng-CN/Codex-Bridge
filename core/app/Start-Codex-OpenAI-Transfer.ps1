@@ -14,6 +14,10 @@ $ErrorActionPreference = 'Stop'
 
 $installRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $settingsPath = Join-Path $installRoot 'launcher.settings.json'
+$credentialStoreScript = Join-Path $installRoot 'Codex-CredentialStore.ps1'
+if (Test-Path -LiteralPath $credentialStoreScript -PathType Leaf) {
+    . $credentialStoreScript
+}
 
 if (-not (Test-Path -LiteralPath $settingsPath -PathType Leaf)) {
     throw "Launcher settings are missing: $settingsPath"
@@ -235,6 +239,14 @@ function New-GenericTransferModelEntry {
         [int]$Priority = 10
     )
 
+    $imageCapable = $Slug -in @(
+        'gpt-5.6-sol',
+        'gpt-5.6-luna',
+        'gpt-5.6-terra',
+        'gpt-6-sol',
+        'gpt-6-luna',
+        'gpt-6-astra'
+    )
     [ordered]@{
         slug = $Slug
         display_name = ConvertTo-TransferModelDisplayName -Slug $Slug
@@ -264,10 +276,15 @@ function New-GenericTransferModelEntry {
         web_search_tool_type = 'text'
         truncation_policy = [ordered]@{ mode = 'tokens'; limit = 10000 }
         supports_parallel_tool_calls = $true
-        supports_image_detail_original = $false
+        supports_image_detail_original = $imageCapable
         effective_context_window_percent = 95
         experimental_supported_tools = @()
-        input_modalities = @('text')
+        input_modalities = if ($imageCapable) {
+            @('text', 'image')
+        }
+        else {
+            @('text')
+        }
         supports_search_tool = $false
         context_window = 1000000
         max_context_window = 1000000
@@ -319,7 +336,26 @@ function Sync-TransferModelCatalog {
         $priority = 0
         foreach ($slug in $remoteIds) {
             if ($existingBySlug.ContainsKey($slug)) {
-                $models += $existingBySlug[$slug]
+                $entry = $existingBySlug[$slug]
+                $imageCapable = $slug -in @(
+                    'gpt-5.6-sol',
+                    'gpt-5.6-luna',
+                    'gpt-5.6-terra',
+                    'gpt-6-sol',
+                    'gpt-6-luna',
+                    'gpt-6-astra'
+                )
+                # Keep every retained entry schema-valid. Older catalogs stored
+                # a bare "text" string here, and Codex rejects the whole catalog
+                # because input_modalities must be a sequence.
+                $entry.input_modalities = if ($imageCapable) {
+                    @('text', 'image')
+                }
+                else {
+                    @('text')
+                }
+                $entry.supports_image_detail_original = $imageCapable
+                $models += $entry
             }
             else {
                 $models += New-GenericTransferModelEntry -Slug $slug -Priority $priority
@@ -328,6 +364,15 @@ function Sync-TransferModelCatalog {
         }
         $catalogObject = [ordered]@{ models = $models }
         $updatedText = $catalogObject | ConvertTo-Json -Depth 20
+        # Windows PowerShell 5.1 ConvertTo-Json collapses a single-element array
+        # into a scalar, so input_modalities = @('text') would be written as
+        # "text" and Codex would reject the catalog ("expected a sequence").
+        # Force the field back to a JSON sequence in the serialized text.
+        $updatedText = [regex]::Replace(
+            $updatedText,
+            '("input_modalities"\s*:\s*)"([^"]*)"',
+            '$1[ "$2" ]'
+        )
         $oldText = ''
         if (Test-Path -LiteralPath $modelCatalogPath -PathType Leaf) {
             $oldText = [IO.File]::ReadAllText($modelCatalogPath, [Text.Encoding]::UTF8)
@@ -451,6 +496,14 @@ try {
         if (-not (Test-Path -LiteralPath $requiredPath)) {
             throw "Required OpenAI Transfer file is missing: $requiredPath"
         }
+    }
+
+    if (-not $ValidateOnly) {
+        Sync-CodexActiveCredential `
+            -Provider 'Transfer' `
+            -LauncherSettings $launcherSettings `
+            -InstallRoot $installRoot `
+            -TargetPath $authPath | Out-Null
     }
 
     if ($ValidateOnly) {
