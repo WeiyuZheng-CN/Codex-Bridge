@@ -767,6 +767,7 @@ if (Test-PathInside -Candidate $LocalQwenOllamaProfileRoot -Parent $packageRoot)
 }
 
 $transferRoot = Join-Path $ProfilesRoot 'ai-pixel-relay'
+$transferCatalogPath = Join-Path $transferRoot 'codex-home\models.json'
 $deepSeekRoot = Join-Path $ProfilesRoot 'deepseek-native-test'
 $deepSeekCatalogPath = Join-Path $deepSeekRoot 'codex-home\models.json'
 $localQwenConfigPath = Join-Path $LocalQwenProfileRoot 'codex-home\config.toml'
@@ -890,6 +891,9 @@ if (${needsTransfer}) {
         -Values @{
             '__TRANSFER_MODEL_JSON__' = $transferModelJson
             '__TRANSFER_REASONING_JSON__' = $transferReasoningJson
+            '__TRANSFER_CATALOG_PATH_JSON__' = (
+                ConvertTo-JsonString $transferCatalogPath
+            )
         }
     $transferAuth = [ordered]@{
         OPENAI_API_KEY = $transferKey
@@ -1089,6 +1093,17 @@ try {
             -BackupRoot $transferBackupRoot `
             -BackupName 'auth.json'
         $null = $profileChanges.Add($change)
+
+        $transferCatalog = [IO.File]::ReadAllText(
+            (Join-Path $catalogRoot 'transfer-models.json'),
+            [Text.Encoding]::UTF8
+        )
+        $change = Install-TextFileAtomically `
+            -TargetPath $transferCatalogPath `
+            -Content $transferCatalog `
+            -BackupRoot $transferBackupRoot `
+            -BackupName 'models.json'
+        $null = $profileChanges.Add($change)
     }
 
     if (${needsLocalQwen}) {
@@ -1185,6 +1200,7 @@ try {
         $deepSeekCatalogPath,
         (Join-Path $transferRoot 'codex-home\config.toml'),
         (Join-Path $transferRoot 'codex-home\auth.json'),
+        $transferCatalogPath,
         $localQwenConfigPath,
         $localQwenCatalogPath,
         $localQwenOllamaConfigPath,
@@ -1292,6 +1308,14 @@ $manifest = [ordered]@{
     transfer_profile_root = $transferRoot
     transfer_shared_profile_root = $transferRoot
     transfer_profile_strategy = 'shared-auth-json'
+    transfer_models = @(
+        'gpt-5.6-sol',
+        'gpt-5.6-luna',
+        'gpt-5.6-terra',
+        'gpt-6-astra',
+        'gpt-6-sol',
+        'gpt-6-luna'
+    )
     local_qwen36_backend = 'ollama'
     local_qwen36_root = $LocalQwenRoot
     local_qwen36_profile_root = $LocalQwenProfileRoot

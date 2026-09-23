@@ -2,6 +2,7 @@ model_provider = "OpenAI"
 model = __TRANSFER_MODEL_JSON__
 model_reasoning_effort = __TRANSFER_REASONING_JSON__
 sandbox_mode = "workspace-write"
+model_catalog_json = __TRANSFER_CATALOG_PATH_JSON__
 
 [sandbox_workspace_write]
 network_access = true

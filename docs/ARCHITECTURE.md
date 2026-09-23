@@ -180,6 +180,21 @@ That is why new installations use one shared Transfer profile and one
 side routing for the same key. The selected model must still be available to
 that key; check `/v1/models` or the model list returned by **使用密匙**.
 
+The current Transfer catalog includes:
+
+- `gpt-5.6-sol`
+- `gpt-5.6-luna`
+- `gpt-5.6-terra`
+- `gpt-6-astra`
+- `gpt-6-sol`
+- `gpt-6-luna`
+
+When the Transfer launcher starts, it performs a read-only authenticated
+`GET /v1/models` and refreshes the shared `models.json` catalog. It keeps a
+dated catalog backup and preserves the packaged catalog if the station is
+temporarily unavailable. This updates the Codex picker without sending a chat
+request.
+
 The older 260902 API Key Mode remains a compatibility reference:
 
 ```toml

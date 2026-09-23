@@ -1,8 +1,8 @@
 {
   "name": "codex-vibe-software",
   "display_name": "Codex Vibe Software",
-  "version": "1.5.0",
-  "built_date": "2026-09-10",
+  "version": "1.6.0",
+  "built_date": "2026-09-23",
   "installation_style": "ai-assisted",
   "platform": "Windows 10/11 x64",
   "credentials_bundled": false,
@@ -57,6 +57,14 @@
   ],
   "transfer_profile_strategy": "shared-auth-json",
   "transfer_reference": "official-current-docs",
+  "transfer_models": [
+    "gpt-5.6-sol",
+    "gpt-5.6-luna",
+    "gpt-5.6-terra",
+    "gpt-6-astra",
+    "gpt-6-sol",
+    "gpt-6-luna"
+  ],
   "transfer_docs": [
     "https://docs.ai-pixel.online/docs/api",
     "https://docs.ai-pixel.online/docs/api/responses",

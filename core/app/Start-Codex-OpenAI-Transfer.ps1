@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [switch]$ValidateOnly,
+    [switch]$RefreshModels,
     [ValidateScript({
         [string]::IsNullOrWhiteSpace($_) -or
         $_ -match '^[A-Za-z0-9][A-Za-z0-9._-]*$'
@@ -47,6 +48,7 @@ $profileRoot = [IO.Path]::GetFullPath($profileSetting)
 $codexHome = Join-Path $profileRoot 'codex-home'
 $codexConfigPath = Join-Path $codexHome 'config.toml'
 $authPath = Join-Path $codexHome 'auth.json'
+$modelCatalogPath = Join-Path $codexHome 'models.json'
 $electronData = Join-Path $profileRoot 'electron-data'
 $logDirectory = Join-Path $profileRoot 'logs'
 
@@ -172,6 +174,19 @@ function Read-TransferProfileConfiguration {
         throw 'The OpenAI Transfer profile must use auth.json authentication.'
     }
 
+    $catalogLine = [regex]::Match(
+        $configText,
+        '(?m)^model_catalog_json\s*=\s*"([^"]*)"\s*\r?$'
+    )
+    if (
+        -not $catalogLine.Success -or
+        [IO.Path]::GetFullPath($catalogLine.Groups[1].Value) -ne
+            [IO.Path]::GetFullPath($modelCatalogPath) -or
+        -not (Test-Path -LiteralPath $modelCatalogPath -PathType Leaf)
+    ) {
+        throw 'The OpenAI Transfer profile model catalog is missing or points to the wrong file.'
+    }
+
     [ordered]@{
         Provider = $providerLine.Groups[1].Value
         BaseUrl = $parsedBaseUrl.AbsoluteUri.TrimEnd('/')
@@ -179,6 +194,193 @@ function Read-TransferProfileConfiguration {
         RequiresOpenAIAuth = $requiresAuthLine.Groups[1].Value
         AuthMode = 'auth.json'
         ProfileStrategy = 'shared-auth-json'
+        CatalogPath = $modelCatalogPath
+    }
+}
+
+function Get-TransferModelsEndpoint {
+    param([Parameter(Mandatory = $true)][string]$BaseUrl)
+
+    $normalized = $BaseUrl.TrimEnd('/')
+    if ($normalized -match '/v1$') {
+        return $normalized + '/models'
+    }
+    return $normalized + '/v1/models'
+}
+
+function ConvertTo-TransferModelDisplayName {
+    param([Parameter(Mandatory = $true)][string]$Slug)
+
+    $parts = @($Slug -split '-')
+    if ($parts.Count -lt 3 -or $parts[0] -ne 'gpt') {
+        return $Slug
+    }
+    $tail = @(
+        $parts[2..($parts.Count - 1)] |
+            ForEach-Object {
+                if ($_.Length -eq 0) {
+                    ''
+                }
+                else {
+                    $_.Substring(0, 1).ToUpperInvariant() + $_.Substring(1)
+                }
+            }
+    ) -join ' '
+    return 'GPT-' + $parts[1] + ' ' + $tail
+}
+
+function New-GenericTransferModelEntry {
+    param(
+        [Parameter(Mandatory = $true)][string]$Slug,
+        [int]$Priority = 10
+    )
+
+    [ordered]@{
+        slug = $Slug
+        display_name = ConvertTo-TransferModelDisplayName -Slug $Slug
+        description = 'OpenAI-compatible Transfer coding model.'
+        default_reasoning_level = 'high'
+        supported_reasoning_levels = @(
+            [ordered]@{ effort = 'low'; description = 'Fast responses with lighter reasoning' }
+            [ordered]@{ effort = 'medium'; description = 'Balanced reasoning' }
+            [ordered]@{ effort = 'high'; description = 'Deep reasoning for complex work' }
+            [ordered]@{ effort = 'xhigh'; description = 'Extra deep reasoning' }
+            [ordered]@{ effort = 'max'; description = 'Maximum reasoning depth' }
+            [ordered]@{ effort = 'ultra'; description = 'Highest available reasoning depth' }
+        )
+        shell_type = 'shell_command'
+        visibility = 'list'
+        supported_in_api = $true
+        priority = $Priority
+        additional_speed_tiers = @()
+        availability_nux = $null
+        upgrade = $null
+        base_instructions = 'You are an OpenAI-compatible coding model connected through the Transfer station. Inspect the workspace, follow its instructions, and collaborate until the user''s goal is handled.'
+        supports_reasoning_summaries = $true
+        default_reasoning_summary = 'none'
+        support_verbosity = $true
+        default_verbosity = 'low'
+        apply_patch_tool_type = 'freeform'
+        web_search_tool_type = 'text'
+        truncation_policy = [ordered]@{ mode = 'tokens'; limit = 10000 }
+        supports_parallel_tool_calls = $true
+        supports_image_detail_original = $false
+        effective_context_window_percent = 95
+        experimental_supported_tools = @()
+        input_modalities = @('text')
+        supports_search_tool = $false
+        context_window = 1000000
+        max_context_window = 1000000
+        reasoning_summary_format = 'experimental'
+        minimal_client_version = '0.154.0'
+        multi_agent_version = 'v2'
+        use_responses_lite = $false
+        include_skills_usage_instructions = $true
+    }
+}
+
+function Sync-TransferModelCatalog {
+    param([switch]$Strict)
+
+    try {
+        $profile = Read-TransferProfileConfiguration
+        $key = Get-TransferAuthenticationKey
+        $headers = @{ Authorization = 'Bearer ' + $key }
+        $response = Invoke-RestMethod `
+            -Uri (Get-TransferModelsEndpoint -BaseUrl $profile.BaseUrl) `
+            -Headers $headers `
+            -Method Get `
+            -TimeoutSec 45
+        $remoteIds = @()
+        foreach ($item in @($response.data)) {
+            $id = [string]$item.id
+            if (
+                $id -match '^gpt-' -and
+                $id -notmatch '^gpt-image'
+            ) {
+                $remoteIds += $id
+            }
+        }
+        $remoteIds = @($remoteIds | Sort-Object -Unique)
+        if ($remoteIds.Count -eq 0) {
+            throw 'The Transfer models endpoint returned no GPT text models.'
+        }
+
+        $existingBySlug = @{}
+        if (Test-Path -LiteralPath $modelCatalogPath -PathType Leaf) {
+            $existing = Get-Content -Raw -LiteralPath $modelCatalogPath |
+                ConvertFrom-Json
+            foreach ($entry in @($existing.models)) {
+                $existingBySlug[[string]$entry.slug] = $entry
+            }
+        }
+
+        $models = @()
+        $priority = 0
+        foreach ($slug in $remoteIds) {
+            if ($existingBySlug.ContainsKey($slug)) {
+                $models += $existingBySlug[$slug]
+            }
+            else {
+                $models += New-GenericTransferModelEntry -Slug $slug -Priority $priority
+            }
+            $priority++
+        }
+        $catalogObject = [ordered]@{ models = $models }
+        $updatedText = $catalogObject | ConvertTo-Json -Depth 20
+        $oldText = ''
+        if (Test-Path -LiteralPath $modelCatalogPath -PathType Leaf) {
+            $oldText = [IO.File]::ReadAllText($modelCatalogPath, [Text.Encoding]::UTF8)
+        }
+        if ($oldText.Trim() -eq $updatedText.Trim()) {
+            return [ordered]@{
+                Status = 'UNCHANGED'
+                ModelCount = $remoteIds.Count
+                Models = $remoteIds
+                CatalogPath = $modelCatalogPath
+            }
+        }
+
+        $backupDirectory = Join-Path $profileRoot (
+            'backups\model-catalog\' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff')
+        )
+        $backupPath = Join-Path $backupDirectory 'models.json'
+        New-Item -ItemType Directory -Force -Path $backupDirectory | Out-Null
+        $temporaryPath = Join-Path $codexHome (
+            'models.json.refresh-' + [Guid]::NewGuid().ToString('N') + '.tmp'
+        )
+        $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+        [IO.File]::WriteAllText($temporaryPath, $updatedText, $utf8NoBom)
+        try {
+            if (Test-Path -LiteralPath $modelCatalogPath -PathType Leaf) {
+                [IO.File]::Replace($temporaryPath, $modelCatalogPath, $backupPath, $true)
+            }
+            else {
+                Move-Item -LiteralPath $temporaryPath -Destination $modelCatalogPath
+            }
+        }
+        finally {
+            if (Test-Path -LiteralPath $temporaryPath) {
+                Remove-Item -LiteralPath $temporaryPath -Force
+            }
+        }
+        return [ordered]@{
+            Status = 'UPDATED'
+            ModelCount = $remoteIds.Count
+            Models = $remoteIds
+            CatalogPath = $modelCatalogPath
+            BackupPath = $backupPath
+        }
+    }
+    catch {
+        if ($Strict) { throw }
+        return [ordered]@{
+            Status = 'REMOTE_UNAVAILABLE'
+            ModelCount = 0
+            Models = @()
+            CatalogPath = $modelCatalogPath
+            Error = $_.Exception.Message
+        }
     }
 }
 
@@ -284,6 +486,7 @@ try {
             RequiresOpenAIAuth = $profileSettings.RequiresOpenAIAuth
             AuthenticationMode = $profileSettings.AuthMode
             ProfileStrategy = $profileSettings.ProfileStrategy
+            ModelCatalogPath = $profileSettings.CatalogPath
             ServerSideModeSwitch = $true
             CurrentReasoningEffort = $currentEffort
             ProfileRoot = $profileRoot
@@ -293,6 +496,13 @@ try {
         }
         return
     }
+
+    if ($RefreshModels) {
+        Sync-TransferModelCatalog -Strict | ConvertTo-Json -Depth 8
+        return
+    }
+
+    $catalogSync = Sync-TransferModelCatalog
 
     if (Get-Process -Name ChatGPT -ErrorAction SilentlyContinue) {
         Show-CodexMessage 'Codex is already open. Quit Codex completely, then open the shortcut again to switch models.'
@@ -322,6 +532,10 @@ try {
     $appProcess.WaitForExit()
 }
 catch {
+    if ($RefreshModels) {
+        Write-Error $_.Exception.ToString()
+        exit 1
+    }
     Show-CodexMessage $_.Exception.Message 'Codex - OpenAI Transfer launch error'
     exit 1
 }

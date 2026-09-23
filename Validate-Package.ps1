@@ -44,6 +44,7 @@ $requiredFiles = @(
     'core\templates\local-qwen36-ollama-config.template.toml',
     'core\templates\local-qwen36-ollama-web-search-config.template.toml',
     'core\catalogs\native-models.json',
+    'core\catalogs\transfer-models.json',
     'core\catalogs\local-qwen36-models.json',
     'core\catalogs\local-qwen36-ollama-models.json',
     'references\deepseek\260909\README.md',
@@ -264,6 +265,32 @@ if (Test-Path -LiteralPath $localQwenCatalogPath -PathType Leaf) {
     }
 }
 
+$transferCatalogPath = Join-Path $packageRoot 'core\catalogs\transfer-models.json'
+if (Test-Path -LiteralPath $transferCatalogPath -PathType Leaf) {
+    try {
+        $transferCatalog = Get-Content -Raw -LiteralPath $transferCatalogPath |
+            ConvertFrom-Json
+        $transferSlugs = @(
+            $transferCatalog.models | ForEach-Object { [string]$_.slug }
+        )
+        foreach ($requiredTransferModel in @(
+            'gpt-5.6-sol',
+            'gpt-5.6-luna',
+            'gpt-6-sol',
+            'gpt-6-luna'
+        )) {
+            if ($transferSlugs -notcontains $requiredTransferModel) {
+                $errors.Add(
+                    "Transfer catalog is missing $requiredTransferModel."
+                )
+            }
+        }
+    }
+    catch {
+        $errors.Add('Could not inspect the Transfer model catalog.')
+    }
+}
+
 $localQwenOllamaCatalogPath = Join-Path $packageRoot 'core\catalogs\local-qwen36-ollama-models.json'
 if (Test-Path -LiteralPath $localQwenOllamaCatalogPath -PathType Leaf) {
     try {
@@ -338,7 +365,8 @@ $templateChecks = [ordered]@{
     )
     'core\templates\transfer-shared-config.template.toml' = @(
         '__TRANSFER_MODEL_JSON__',
-        '__TRANSFER_REASONING_JSON__'
+        '__TRANSFER_REASONING_JSON__',
+        '__TRANSFER_CATALOG_PATH_JSON__'
     )
     'core\templates\local-qwen36-config.template.toml' = @(
         '__LOCAL_QWEN_CATALOG_PATH_JSON__'

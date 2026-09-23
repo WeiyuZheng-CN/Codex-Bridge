@@ -37,6 +37,10 @@ Codex profile as-is. The shared Transfer profile uses one station key in
 historical 260902 API Key Mode profile may remain in the user's existing
 profile for rollback when a station still requires an environment key or actor
 header.
+The Transfer model catalog includes the current `gpt-5.6-*` models plus
+`gpt-6-astra`, `gpt-6-sol`, and `gpt-6-luna`. The launcher refreshes it from
+the authenticated `/v1/models` endpoint at startup and never sends a chat
+request for model discovery.
 
 Local Qwen3.6 is credential-free and is kept outside the portable app directory.
 Its Ollama profile is
