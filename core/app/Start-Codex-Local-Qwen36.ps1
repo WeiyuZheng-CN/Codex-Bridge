@@ -67,6 +67,12 @@ $endpoint = "http://127.0.0.1:$port"
 $expectedModelBytes = [int64]21718480960
 $expectedContextWindow = 262144
 
+$packageLaunchScript = Join-Path $installRoot 'Codex-PackageLaunch.ps1'
+if (-not (Test-Path -LiteralPath $packageLaunchScript -PathType Leaf)) {
+    throw "Codex package launch helper is missing: $packageLaunchScript"
+}
+. $packageLaunchScript
+
 function Show-CodexMessage {
     param(
         [string]$Message,
@@ -380,17 +386,15 @@ try {
 
     $serverPid = Start-LocalQwenServer
     New-Item -ItemType Directory -Force -Path $electronData | Out-Null
-    $appExe = Resolve-CodexDesktopExecutable
-    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
-    $startInfo.FileName = $appExe
-    $startInfo.WorkingDirectory = Split-Path -Parent $appExe
-    $startInfo.UseShellExecute = $false
-    $startInfo.EnvironmentVariables['CODEX_HOME'] = $codexHome
-    $startInfo.EnvironmentVariables['CODEX_ELECTRON_USER_DATA_PATH'] = $electronData
-    $appProcess = [System.Diagnostics.Process]::Start($startInfo)
-    if (-not $appProcess) { throw 'Codex did not start.' }
+    # Current Codex Store builds refuse to run without MSIX package identity,
+    # so activate the app inside its package instead of starting ChatGPT.exe
+    # as a plain file. The helper also establishes CODEX_HOME for the child.
+    $null = Start-CodexDesktopInPackage `
+        -CodexHome $codexHome `
+        -ElectronData $electronData `
+        -WrapperDirectory (Join-Path $installRoot 'runtime') `
+        -WrapperName 'launch-local-qwen36.cmd'
     Write-Verbose "Local Qwen3.6 server PID: $serverPid"
-    $appProcess.WaitForExit()
 }
 catch {
     Show-CodexMessage $_.Exception.Message

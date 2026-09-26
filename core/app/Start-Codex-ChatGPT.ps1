@@ -8,6 +8,11 @@ $ErrorActionPreference = 'Stop'
 
 $installRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $settingsPath = Join-Path $installRoot 'launcher.settings.json'
+$packageLaunchScript = Join-Path $installRoot 'Codex-PackageLaunch.ps1'
+if (-not (Test-Path -LiteralPath $packageLaunchScript -PathType Leaf)) {
+    throw "Codex package launch helper is missing: $packageLaunchScript"
+}
+. $packageLaunchScript
 
 function Show-CodexMessage {
     param(
@@ -81,18 +86,17 @@ try {
         exit 2
     }
 
-    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
-    $startInfo.FileName = $appExe
-    $startInfo.WorkingDirectory = Split-Path -Parent $appExe
-    $startInfo.UseShellExecute = $false
-    $startInfo.EnvironmentVariables['CODEX_HOME'] = Join-Path $env:USERPROFILE '.codex'
-    $startInfo.EnvironmentVariables['CODEX_ELECTRON_USER_DATA_PATH'] =
-        Join-Path $env:LOCALAPPDATA 'OpenAI\Codex'
-    $appProcess = [System.Diagnostics.Process]::Start($startInfo)
+    $codexHome = Join-Path $env:USERPROFILE '.codex'
+    $electronData = Join-Path $env:LOCALAPPDATA 'OpenAI\Codex'
 
-    if (-not $appProcess) {
-        throw 'Codex did not start.'
-    }
+    # Current Codex Store builds refuse to run without MSIX package identity,
+    # so activate the app inside its package instead of starting ChatGPT.exe
+    # as a plain file. The helper also establishes CODEX_HOME for the child.
+    $null = Start-CodexDesktopInPackage `
+        -CodexHome $codexHome `
+        -ElectronData $electronData `
+        -WrapperDirectory (Join-Path $installRoot 'runtime') `
+        -WrapperName 'launch-chatgpt.cmd'
 }
 catch {
     Show-CodexMessage $_.Exception.Message 'Codex - ChatGPT launch error'

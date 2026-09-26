@@ -18,6 +18,11 @@ $credentialStoreScript = Join-Path $installRoot 'Codex-CredentialStore.ps1'
 if (Test-Path -LiteralPath $credentialStoreScript -PathType Leaf) {
     . $credentialStoreScript
 }
+$packageLaunchScript = Join-Path $installRoot 'Codex-PackageLaunch.ps1'
+if (-not (Test-Path -LiteralPath $packageLaunchScript -PathType Leaf)) {
+    throw "Codex package launch helper is missing: $packageLaunchScript"
+}
+. $packageLaunchScript
 $logDirectory = Join-Path $installRoot 'logs'
 
 $launcherSettings = $null
@@ -289,18 +294,14 @@ try {
     New-Item -ItemType Directory -Force -Path $electronData | Out-Null
     Set-SelectedModel -SelectedModel $Model
 
-    $appExe = Resolve-CodexDesktopExecutable
-    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
-    $startInfo.FileName = $appExe
-    $startInfo.WorkingDirectory = Split-Path -Parent $appExe
-    $startInfo.UseShellExecute = $false
-    $startInfo.EnvironmentVariables['CODEX_HOME'] = $codexHome
-    $startInfo.EnvironmentVariables['CODEX_ELECTRON_USER_DATA_PATH'] = $electronData
-    $appProcess = [System.Diagnostics.Process]::Start($startInfo)
-    if (-not $appProcess) {
-        throw 'Codex did not start.'
-    }
-    $appProcess.WaitForExit()
+    # Current Codex Store builds refuse to run without MSIX package identity,
+    # so activate the app inside its package instead of starting ChatGPT.exe
+    # as a plain file. The helper also establishes CODEX_HOME for the child.
+    $null = Start-CodexDesktopInPackage `
+        -CodexHome $codexHome `
+        -ElectronData $electronData `
+        -WrapperDirectory (Join-Path $installRoot 'runtime') `
+        -WrapperName 'launch-deepseek.cmd'
 }
 catch {
     Show-CodexMessage $_.Exception.Message 'Codex - DeepSeek launch error'

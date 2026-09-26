@@ -30,6 +30,17 @@ executable, profile roots, credential-store path, and `enabled_modes`. Unselecte
 and are dimmed. This makes later growth discoverable without pretending that a
 missing credential is already configured.
 
+The Codex desktop app is a Microsoft Store/MSIX package, and current builds
+refuse to run when `ChatGPT.exe` is started as a plain file: the process gets no
+package identity and the app aborts with "the process has no package identity"
+(Windows error 15700). Every provider launcher therefore activates the app
+inside its package with `Invoke-CommandInDesktopPackage`, through the shared
+`core\app\Codex-PackageLaunch.ps1` helper. Package activation does not carry the
+calling process's environment into the app, so the profile paths are set inside
+a generated `.cmd` wrapper that runs in the packaged child; setting `CODEX_HOME`
+in the launcher process alone is not sufficient. The package is always resolved
+dynamically with `Get-AppxPackage`, so a Store update cannot break the path.
+
 Default destinations are:
 
 ```text
@@ -269,6 +280,10 @@ databases, logs, Electron data, PID files, caches, backups, and personal paths.
 ## Repair heuristics
 
 - Codex not found: locate the installed `ChatGPT.exe` and pass its path.
+- "ChatGPT failed to start" with "the process has no package identity": a Store
+  update changed the launch contract, or something started `ChatGPT.exe`
+  directly. Launch through `Start-Codex-*` (package activation) rather than the
+  raw executable, and re-check `core\app\Codex-PackageLaunch.ps1`.
 - A card is dimmed: the mode is not in `enabled_modes`; ask for its credential
   and configure it rather than calling the UI broken.
 - Transfer 409: inspect the station/account connection state before changing

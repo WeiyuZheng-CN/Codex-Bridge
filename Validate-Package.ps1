@@ -27,6 +27,7 @@ $requiredFiles = @(
     'core\app\Start-Codex-OpenAI-Transfer.ps1',
     'core\app\Start-Codex-Settings.ps1',
     'core\app\Codex-CredentialStore.ps1',
+    'core\app\Codex-PackageLaunch.ps1',
     'core\app\Start-Codex-Settings.ps1',
     'core\app\Codex-CredentialStore.ps1',
     'core\app\Start-Codex-Local-Qwen36.ps1',
