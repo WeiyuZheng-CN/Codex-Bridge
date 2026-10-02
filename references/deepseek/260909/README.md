@@ -17,16 +17,19 @@ wire_api = "responses"
 shape. The `Deepseek.txt` file supplied by the user is an API usage example,
 not a file to copy into the repository; any key from it must remain local.
 
-The model catalog should expose these models through the same DeepSeek
-entrance:
+The current official model catalog exposes these models through the same
+DeepSeek entrance:
 
+- `deepseek-flash`
 - `deepseek-v4-pro`
-- `deepseek-v4-flash`
-- `deepseek-v4-flash-vision-exp`
 
-The vision model accepts JPEG, PNG, GIF, and WebP. With the Responses API,
-images are supplied as `input_image` content parts. The official guide also
-documents base64 data URLs, public image URLs, and Files API `file_id` inputs.
+Both `deepseek-flash` and `deepseek-v4-pro` are marked as image-capable in
+this starter because the current station routes them through the
+Flash-capable backend. They accept JPEG, PNG, GIF, and WebP. With the
+Responses API, images are supplied as `input_image` content parts. The
+official guide also documents base64 data URLs, public image URLs, and
+Files API `file_id` inputs. Older `deepseek-v4-flash` and
+`deepseek-v4-flash-vision-exp` names are migrated to `deepseek-flash`.
 
 When installing, the agent should use the native profile and let the user
 choose the model inside Codex. Moon Bridge is not part of the current core;

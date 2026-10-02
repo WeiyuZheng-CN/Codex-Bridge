@@ -346,7 +346,7 @@ if ($ValidateOnly) {
         EnabledModes = @($availability.Keys | Where-Object { $availability[$_] })
         Choices = @(
             'ChatGPT',
-            'DeepSeek (V4 Pro + V4 Flash + Vision)',
+            'DeepSeek (V4 Pro + Flash image input)',
             'OpenAI Transfer',
             'Local Qwen3.6'
         )

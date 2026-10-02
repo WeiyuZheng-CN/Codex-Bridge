@@ -7,7 +7,7 @@ DeepSeek, OpenAI Transfer, and Local Qwen3.6 entries. For diagnostics, run
 The top-level choices are ChatGPT, DeepSeek, OpenAI Transfer, and Local Qwen3.6.
 The single
 DeepSeek entry uses the official native profile. After Codex opens, its model
-picker contains V4 Pro, V4 Flash, and V4 Flash Vision. OpenAI Transfer uses one
+picker contains V4 Pro and DeepSeek Flash, both with image input. OpenAI Transfer uses one
 shared `auth.json` profile; switch between `OpenAI-transfer-Pro` and
 `OpenAI-transfer` in the transfer-station web console for the same key.
 Use the gear button in the top-right corner to save and select multiple

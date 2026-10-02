@@ -11,7 +11,7 @@ Codex desktop shortcut
   -> Start-Codex-Chooser.ps1
      -> ChatGPT profile
      -> DeepSeek -> native DeepSeek Responses API
-          -> Codex model picker: V4 Pro / V4 Flash / V4 Flash Vision
+          -> Codex model picker: V4 Pro / DeepSeek Flash (both image-capable)
       -> OpenAI Transfer -> shared auth.json profile -> station API
            -> Pro/Legacy selected in the station web console
      -> Local Qwen3.6 -> Ollama Responses API -> isolated profile
@@ -19,10 +19,10 @@ Codex desktop shortcut
 ```
 
 The main chooser has one DeepSeek card. The native DeepSeek profile exposes
-`deepseek-v4-pro`, `deepseek-v4-flash`, and
-`deepseek-v4-flash-vision-exp` through the same provider entrance. The vision
-model accepts JPEG, PNG, GIF, and WebP images as Responses API `input_image`
-parts. The former Moon Bridge route is not included in the current application.
+`deepseek-v4-pro` and `deepseek-flash` through the same provider entrance.
+Both entries accept JPEG, PNG, GIF, and WebP images as Responses API
+`input_image` parts under the current station routing. The former Moon Bridge
+route is not included in the current application.
 Its old source and binary are kept outside the repository package as a local
 archive when recovery is needed.
 

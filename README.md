@@ -62,7 +62,7 @@ Install-*.ps1 / .cmd     安装与验证入口
 但会保留在 archive/ 中供迁移和回滚使用；它们也可从 Git commit `0924440`
 或更早的 release 恢复。
 
-可选模式包括 ChatGPT、DeepSeek（V4 Pro、V4 Flash、V4 Flash Vision）、
+可选模式包括 ChatGPT、DeepSeek（V4 Pro 和 DeepSeek Flash，均支持图片）、
 OpenAI Transfer 和 Local Qwen3.6。Local Qwen3.6 默认使用本机 loopback 上的
 Ollama Responses API，并且不需要 OpenAI 登录；模型由 Ollama 管理，启动脚本
 位于 `%USERPROFILE%\Documents\Codex\local-qwen36`，隔离 profile 位于同级的
@@ -94,7 +94,9 @@ the externally staged model/runtime, so the fix is retained after reinstall.
 未安装的模式仍保留在漂亮界面中，
 但会淡化显示；以后可以让 agent 补装。
 
-仓库还提供 `references/deepseek/260909` 的官方 native/vision 参考；旧版
+仓库还提供 `references/deepseek/260909` 的官方 native/vision 参考；当前
+官方配置使用 `deepseek-flash` 和 `deepseek-v4-pro`；当前中转路由下两者
+都标记为支持图片。旧版
 Transfer 兼容说明位于 `docs/LEGACY-COMPATIBILITY.md`。需要最新配置或
 凭据时，agent 会让用户打开 <https://ai-pixel.online/keys> 并点击“使用密匙”；
 页面返回的信息应保存在仓库外或通过本地隐藏输入框使用，不能粘贴到聊天或

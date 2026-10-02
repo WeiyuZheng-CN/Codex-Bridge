@@ -2,6 +2,7 @@
 param(
     [ValidateSet(
         'deepseek-v4-pro',
+        'deepseek-flash',
         'deepseek-v4-flash',
         'deepseek-v4-flash-vision-exp'
     )]
@@ -61,6 +62,20 @@ $codexHome = Join-Path $deepSeekRoot 'codex-home'
 $codexConfigPath = Join-Path $codexHome 'config.toml'
 $modelCatalogPath = Join-Path $codexHome 'models.json'
 $electronData = Join-Path $deepSeekRoot 'electron-data'
+
+function Normalize-DeepSeekModel {
+    param([string]$SelectedModel)
+
+    if ([string]::IsNullOrWhiteSpace($SelectedModel)) {
+        return $SelectedModel
+    }
+
+    switch ($SelectedModel) {
+        'deepseek-v4-flash' { return 'deepseek-flash' }
+        'deepseek-v4-flash-vision-exp' { return 'deepseek-flash' }
+        default { return $SelectedModel }
+    }
+}
 
 function Show-CodexMessage {
     param(
@@ -178,8 +193,7 @@ function Get-DeepSeekProfileState {
     $modelSlugs = @($catalog.models | ForEach-Object { [string]$_.slug })
     foreach ($requiredModel in @(
         'deepseek-v4-pro',
-        'deepseek-v4-flash',
-        'deepseek-v4-flash-vision-exp'
+        'deepseek-flash'
     )) {
         if ($modelSlugs -notcontains $requiredModel) {
             throw "The DeepSeek model catalog does not expose $requiredModel."
@@ -292,7 +306,7 @@ try {
 
     New-Item -ItemType Directory -Force -Path $logDirectory | Out-Null
     New-Item -ItemType Directory -Force -Path $electronData | Out-Null
-    Set-SelectedModel -SelectedModel $Model
+    Set-SelectedModel -SelectedModel (Normalize-DeepSeekModel $Model)
 
     # Current Codex Store builds refuse to run without MSIX package identity,
     # so activate the app inside its package instead of starting ChatGPT.exe

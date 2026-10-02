@@ -18,7 +18,7 @@ The chooser dispatches provider launchers in separate PowerShell processes:
 Start-Codex-Chooser.ps1
   ChatGPT             -> normal user Codex profile
   DeepSeek             -> one native profile -> DeepSeek Responses API
-    Codex model picker -> V4 Pro / V4 Flash / V4 Flash Vision
+    Codex model picker -> V4 Pro / DeepSeek Flash (both image-capable)
   OpenAI Transfer     -> one shared auth.json profile -> station Responses API
     Pro / Legacy       -> selected by the transfer-station web console
   Local Qwen3.6       -> Ollama Responses API -> isolated profile
@@ -99,7 +99,9 @@ automation, supplied credential-file paths are used to infer a useful subset;
 with no credentials it installs ChatGPT only. In an attended run, the installer
 asks which modes to install. ChatGPT is always included as the base route.
 For compatibility, old names such as `NativeFlash` and
-`deepseek-v4-flash` are accepted as aliases for the single `DeepSeek` mode.
+`deepseek-flash`, `deepseek-v4-flash`, and
+`deepseek-v4-flash-vision-exp` are accepted as aliases for the single
+`DeepSeek` mode.
 
 Examples:
 
@@ -150,17 +152,18 @@ ACLs where Windows permits it.
 
 ## Current DeepSeek native baseline
 
-The 260909 reference and official Vision guide use the native DeepSeek API at
+The 260909 reference and current official DeepSeek setup use the native API at
 `https://api.deepseek.com`. The generated Codex profile uses the Responses API
 and one model catalog containing:
 
-- `deepseek-v4-pro`;
-- `deepseek-v4-flash`;
-- `deepseek-v4-flash-vision-exp`.
+- `deepseek-v4-pro` for the Pro route with image input;
+- `deepseek-flash` for the current Flash route with image input.
 
 There is no second DeepSeek dialog. The user starts DeepSeek once and selects
-the desired model in Codex. The vision model accepts JPEG, PNG, GIF, and WebP
-images through Responses API `input_image` parts. See
+the desired model in Codex. Both entries accept JPEG, PNG, GIF, and WebP
+images through Responses API `input_image` parts under the current station
+routing. Older model names are only compatibility aliases and are normalized
+to `deepseek-flash`. See
 `references\deepseek\260909` and
 <https://api-docs.deepseek.com/guides/vision>.
 

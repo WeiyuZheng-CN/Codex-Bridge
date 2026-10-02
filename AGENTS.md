@@ -23,7 +23,7 @@ the package author's machine.
 | Installer mode | UI choice | Private input |
 |---|---|---|
 | `ChatGPT` | ChatGPT | Existing Codex login; no new key |
-| `DeepSeek` | V4 Pro, V4 Flash, or V4 Flash Vision; select inside Codex | DeepSeek API key |
+| `DeepSeek` | V4 Pro and DeepSeek Flash with image input; select inside Codex | DeepSeek API key |
 | `Transfer` | OpenAI Transfer; switch Pro/Legacy at the station website | One current station key |
 | `LocalQwen36` | Local Qwen3.6 35B-A3B Q4_K_M through Ollama, with llama.cpp CUDA fallback | Installed Ollama/model; optional key only for web search |
 
@@ -115,6 +115,8 @@ intentional local adaptation, not for ignoring an unknown failure.
 Everything else inside the requested local installation is adaptation work the
 agent may perform and explain.
 
-The DeepSeek UI is intentionally one entry. Its native profile exposes Pro,
-Flash, and Flash Vision in Codex after startup; do not add a DeepSeek second
-layer or revive the old native-Flash card as the primary path.
+The DeepSeek UI is intentionally one entry. Its native profile exposes
+`deepseek-v4-pro` and `deepseek-flash` in Codex after startup. Both current
+entries advertise image input through the Responses API because the station
+routes them through the current Flash-capable backend. Do not add a DeepSeek
+second layer or revive the old native-Flash card as the primary path.

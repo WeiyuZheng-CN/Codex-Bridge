@@ -191,8 +191,7 @@ if (Test-Path -LiteralPath $nativeCatalogPath -PathType Leaf) {
         )
         foreach ($requiredNativeModel in @(
             'deepseek-v4-pro',
-            'deepseek-v4-flash',
-            'deepseek-v4-flash-vision-exp'
+            'deepseek-flash'
         )) {
             if ($nativeSlugs -notcontains $requiredNativeModel) {
                 $errors.Add(
@@ -200,17 +199,23 @@ if (Test-Path -LiteralPath $nativeCatalogPath -PathType Leaf) {
                 )
             }
         }
-        $visionModel = @(
-            $nativeCatalog.models |
-                Where-Object { $_.slug -eq 'deepseek-v4-flash-vision-exp' }
-        )
-        if (
-            $visionModel.Count -eq 1 -and
-            @($visionModel[0].input_modalities) -notcontains 'image'
-        ) {
-            $errors.Add(
-                'Native DeepSeek vision model does not advertise image input.'
+        foreach ($imageModelSlug in @(
+            'deepseek-flash',
+            'deepseek-v4-pro'
+        )) {
+            $imageModel = @(
+                $nativeCatalog.models |
+                    Where-Object { $_.slug -eq $imageModelSlug }
             )
+            if (
+                $imageModel.Count -eq 1 -and
+                @($imageModel[0].input_modalities) -notcontains 'image'
+            ) {
+                $errors.Add(
+                    "Native DeepSeek model $imageModelSlug " +
+                    'does not advertise image input.'
+                )
+            }
         }
     }
     catch {

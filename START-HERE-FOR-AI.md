@@ -15,13 +15,14 @@ exists, and what information is missing. Ask one focused question only when
 you need the answer. Carry out ordinary reversible installation work
 autonomously; do not make the user edit scripts or configuration by hand.
 
-The supported choices are ChatGPT, one native DeepSeek entry with V4 Pro,
-V4 Flash, and V4 Flash Vision available in Codex's model picker, one OpenAI
+The supported choices are ChatGPT, one native DeepSeek entry with V4 Pro and
+DeepSeek Flash, both with image input available in Codex's model picker, one OpenAI
 Transfer entry, and one credential-free-for-local-inference Local Qwen3.6 entry. Install only the
 requested modes.
 ChatGPT is the base mode. Do not create a second DeepSeek selector: start the
-shared native profile and let Codex's own model picker select Pro, Flash, or
-Flash Vision.
+shared native profile and let Codex's own model picker select Pro or Flash.
+Both entries are marked image-capable because the current station routes them
+through the Flash-capable backend.
 Local Qwen3.6 starts the installed Ollama server on 127.0.0.1:11434 and uses
 the built-in Codex `ollama` provider with an isolated profile. It does not
 change `%USERPROFILE%\.codex`. The tested Ollama path supports structured

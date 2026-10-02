@@ -63,7 +63,8 @@ function Resolve-InstallModes {
         'deepseek' = 'DeepSeek'
         'deepseekpro' = 'DeepSeek'
         'deepseek-v4-pro' = 'DeepSeek'
-        # Old installers exposed Flash separately. Keep the old names as
+        'deepseek-flash' = 'DeepSeek'
+        # Older installers exposed Flash separately. Keep the old names as
         # compatibility aliases for the single native DeepSeek entrance.
         'native' = 'DeepSeek'
         'nativeflash' = 'DeepSeek'
@@ -945,8 +946,7 @@ $launcherSettings = [ordered]@{
     deepseek_transport = 'native'
     deepseek_models = @(
         'deepseek-v4-pro',
-        'deepseek-v4-flash',
-        'deepseek-v4-flash-vision-exp'
+        'deepseek-flash'
     )
     transfer_profile_root = $transferRoot
     transfer_shared_profile_root = $transferRoot
@@ -1307,8 +1307,7 @@ $manifest = [ordered]@{
     deepseek_transport = 'native'
     deepseek_models = @(
         'deepseek-v4-pro',
-        'deepseek-v4-flash',
-        'deepseek-v4-flash-vision-exp'
+        'deepseek-flash'
     )
     transfer_profile_root = $transferRoot
     transfer_shared_profile_root = $transferRoot
